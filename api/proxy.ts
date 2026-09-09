@@ -110,7 +110,7 @@ async function artifact(body, res) {
   }
 
   if (format === 'pptx') {
-    const PptxGenJS = (await import('pptxgenjs')).default;
+    const PptxGenJS: any = (await import('pptxgenjs')).default;
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_WIDE';
     pptx.author = 'A.I Văn phòng';
