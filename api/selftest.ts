@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -20,17 +24,16 @@ export default async function handler(req, res) {
     result.xlsx = { pass: false, error: String(error?.message || error).slice(0, 180) };
   }
   try {
-    const mod: any = await import('pptxgenjs');
-    const PptxGenJS: any = mod.default || mod;
+    const PptxGenJS = require('pptxgenjs');
     const pptx = new PptxGenJS();
     const slide = pptx.addSlide();
     slide.addText('A.I Văn phòng v1.7 self-test', { x: 0.8, y: 0.8, w: 8, h: 0.5, fontSize: 24 });
-    const out: any = await pptx.write({ outputType: 'nodebuffer' });
+    const out = await pptx.write({ outputType: 'nodebuffer' });
     const buf = Buffer.isBuffer(out) ? out : Buffer.from(out);
     result.pptx = { pass: buf.length > 100, bytes: buf.length };
   } catch (error: any) {
     result.pptx = { pass: false, error: String(error?.message || error).slice(0, 180) };
   }
   const pass = Object.values(result).every((x: any) => x?.pass === true);
-  return res.status(pass ? 200 : 500).json({ pass, release: '1.7.0-second-brain-voice-fabric', artifacts: result, timestamp: new Date().toISOString() });
+  return res.status(pass ? 200 : 500).json({ pass, release: '1.7.1-second-brain-voice-fabric', artifacts: result, timestamp: new Date().toISOString() });
 }
