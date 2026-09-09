@@ -1,4 +1,4 @@
-const CACHE = 'ai-office-v17-second-brain-1';
+const CACHE = 'ai-office-v171-second-brain-1';
 const SHELL = [
   '/',
   '/manifest.webmanifest',
