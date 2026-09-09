@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     status: 'ok',
-    release: '1.7.0-second-brain-voice-fabric',
+    release: '1.7.1-second-brain-voice-fabric',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
