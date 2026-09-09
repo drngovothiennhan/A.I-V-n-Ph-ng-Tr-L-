@@ -1,11 +1,10 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 
 const MAX_BODY = 64 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
 
-function isPrivateIp(ip: string) {
+function isPrivateIp(ip) {
   if (net.isIPv4(ip)) {
     const p = ip.split('.').map(Number);
     return p[0] === 10 || p[0] === 127 || p[0] === 0 ||
@@ -20,7 +19,7 @@ function isPrivateIp(ip: string) {
   return true;
 }
 
-async function assertPublicUrl(raw: string) {
+async function assertPublicUrl(raw) {
   const url = new URL(raw);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('UNSUPPORTED_PROTOCOL');
   if (url.username || url.password) throw new Error('URL_CREDENTIALS_FORBIDDEN');
@@ -31,11 +30,11 @@ async function assertPublicUrl(raw: string) {
   return url;
 }
 
-function cleanText(input: unknown, max = 12000) {
+function cleanText(input, max = 12000) {
   return String(input ?? '').replace(/\0/g, '').slice(0, max);
 }
 
-async function chief(body: any) {
+async function chief(body) {
   const message = cleanText(body?.message, 16000);
   if (!message) return { reply: '' };
 
@@ -56,12 +55,12 @@ async function chief(body: any) {
     signal: AbortSignal.timeout(25000)
   });
   if (!response.ok) return { reply: '', provider: 'local', fallback: true, upstreamStatus: response.status };
-  const data: any = await response.json();
-  const reply = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
+  const data = await response.json();
+  const reply = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('') || '';
   return { reply, provider: 'gemini', fallback: false };
 }
 
-async function webRead(body: any) {
+async function webRead(body) {
   const url = await assertPublicUrl(cleanText(body?.url, 2048));
   const response = await fetch(url, {
     redirect: 'follow',
@@ -82,7 +81,7 @@ async function webRead(body: any) {
   return { url: url.toString(), text, contentType: type };
 }
 
-async function artifact(body: any, res: VercelResponse) {
+async function artifact(body, res) {
   const format = cleanText(body?.format, 12).toLowerCase();
   const title = cleanText(body?.title || body?.fileName || 'AI Office', 160);
   const content = cleanText(body?.content, 50000);
@@ -118,8 +117,8 @@ async function artifact(body: any, res: VercelResponse) {
     pptx.subject = title;
     const slide = pptx.addSlide();
     slide.addText(title, { x: 0.65, y: 0.55, w: 12, h: 0.6, fontSize: 26, bold: true, color: '1E2B50' });
-    slide.addText(content.slice(0, 5000), { x: 0.7, y: 1.4, w: 11.8, h: 5.2, fontSize: 15, color: '34415F', breakLine: false, margin: 0.08 });
-    const output: any = await pptx.write({ outputType: 'nodebuffer' });
+    slide.addText(content.slice(0, 5000), { x: 0.7, y: 1.4, w: 11.8, h: 5.2, fontSize: 15, color: '34415F', margin: 0.08 });
+    const output = await pptx.write({ outputType: 'nodebuffer' });
     const buffer = Buffer.isBuffer(output) ? output : Buffer.from(output);
     res.setHeader('content-type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(title)}.pptx`);
@@ -129,7 +128,7 @@ async function artifact(body: any, res: VercelResponse) {
   return res.status(400).json({ error: 'UNSUPPORTED_ARTIFACT_FORMAT', supported: ['docx', 'xlsx', 'pptx'] });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -145,7 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (op === 'web') return res.status(200).json(await webRead(req.body));
     if (op === 'artifact') return artifact(req.body, res);
     return res.status(400).json({ error: 'INVALID_OP' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('proxy_error', { op, message: String(error?.message || error).slice(0, 300) });
     return res.status(502).json({ error: 'OPERATION_FAILED', op });
   }
