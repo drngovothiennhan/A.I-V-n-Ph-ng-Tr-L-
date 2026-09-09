@@ -1,0 +1,9 @@
+{
+  "name": "ai-office-v17-upgrade-kit",
+  "private": true,
+  "version": "1.7.0",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
