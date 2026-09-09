@@ -22,11 +22,12 @@ export default async function handler(req, res) {
       .replace(/Drive Knowledge Brain · v1\.6/g, 'Continuous Second Brain · v1.8')
       .replace(/Second Brain · v1\.7/g, 'Continuous Second Brain · v1.8')
       .replace(/1\.6\.0 DRIVE KNOWLEDGE BRAIN/g, '1.8.0 CONTINUOUS SECOND BRAIN')
-      .replace(/1\.7\.1 SECOND BRAIN/g, '1.8.0 CONTINUOUS SECOND BRAIN');
+      .replace(/1\.7\.1 SECOND BRAIN/g, '1.8.0 CONTINUOUS SECOND BRAIN')
+      .replace('Mặc định sản phẩm: DOCX · XLSX · PPTX · PNG. Chỉ báo hoàn tất sau khi bạn duyệt.', 'Mặc định: trả lời hoặc kết quả công việc ngay trong hội thoại. Chỉ tạo file khi bạn yêu cầu rõ.');
 
     html = html.replace(/<script type="module" src="\/src\/bootstrap-v17\.js(?:\?[^\"]*)?"><\/script>/g, '');
     if (!html.includes('/src/bootstrap-v18.js')) {
-      const mount = '<script type="module" src="/src/bootstrap-v18.js?v=180"></script>';
+      const mount = '<script type="module" src="/src/bootstrap-v18.js?v=181"></script>';
       html = html.includes('</body>') ? html.replace('</body>', `${mount}</body>`) : `${html}${mount}`;
     }
     return res.status(200).send(html);
