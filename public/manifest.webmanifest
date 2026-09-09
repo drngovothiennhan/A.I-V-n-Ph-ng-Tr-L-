@@ -1,0 +1,49 @@
+{
+  "id": "/",
+  "name": "A.I Văn phòng v1.7 – Second Brain",
+  "short_name": "A.I Văn phòng",
+  "description": "Trưởng phòng A.I, Drive Knowledge Brain, team trợ lý chuyên môn và XiaoZhi Voice Fabric",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "background_color": "#f6f8ff",
+  "theme_color": "#f6f8ff",
+  "lang": "vi",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Giao việc",
+      "short_name": "Giao việc",
+      "url": "/#tasks"
+    },
+    {
+      "name": "Drive Brain",
+      "short_name": "Drive Brain",
+      "url": "/#brain"
+    }
+  ]
+}
