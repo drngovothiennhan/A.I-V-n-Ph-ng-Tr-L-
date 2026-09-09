@@ -1,7 +1,7 @@
 {
-  "name": "ai-office-v17-second-brain",
+  "name": "ai-office-v18-continuous-second-brain",
   "private": true,
-  "version": "1.7.1",
+  "version": "1.8.0",
   "type": "module",
   "dependencies": {
     "docx": "^9.5.1",
