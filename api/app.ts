@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       .replace(/A\.I Văn phòng v1\.6/g, 'A.I Văn phòng v1.7')
       .replace(/RELEASE 1\.6/g, 'RELEASE 1.7')
       .replace(/Drive Knowledge Brain · v1\.6/g, 'Second Brain · v1.7')
-      .replace(/1\.6\.0 DRIVE KNOWLEDGE BRAIN/g, '1.7.0 SECOND BRAIN');
+      .replace(/1\.6\.0 DRIVE KNOWLEDGE BRAIN/g, '1.7.1 SECOND BRAIN');
 
     if (!html.includes('/src/bootstrap-v17.js')) {
       const mount = '<script type="module" src="/src/bootstrap-v17.js"></script>';
