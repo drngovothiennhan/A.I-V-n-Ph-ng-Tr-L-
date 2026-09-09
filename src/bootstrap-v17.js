@@ -18,17 +18,14 @@ document.querySelector('.ey')?.replaceChildren(document.createTextNode('A.I VĂN
 const brandSmall = document.querySelector('.brand small');
 if (brandSmall) brandSmall.textContent = 'Second Brain · v1.7';
 const footer = document.querySelector('.footer');
-if (footer) footer.textContent = 'A.I VĂN PHÒNG · 1.7.0 SECOND BRAIN · Dashboard v1.5 approved · Local-first';
+if (footer) footer.textContent = 'A.I VĂN PHÒNG · 1.7.1 SECOND BRAIN · Dashboard v1.5 approved · Local-first';
 
 const dock = document.createElement('div');
 dock.id = 'v17Dock';
 dock.innerHTML = '<span id="v17Status">Đang kiểm tra provider…</span><button id="v17Install" hidden>Cài ứng dụng</button><button id="v17Voice" aria-label="XiaoZhi Voice">🎙</button>';
 document.body.appendChild(dock);
 
-const install = new PwaInstallController({
-  button: document.getElementById('v17Install'),
-  status: null
-}).start();
+const install = new PwaInstallController({ button: document.getElementById('v17Install'), status: null }).start();
 
 let provider = { xiaozhi: { configured: false } };
 try {
@@ -57,27 +54,12 @@ voice.addEventListener('state', (event) => {
   else if (state === 'browser-listening') status.textContent = 'Đang nghe…';
   else if (state === 'fallback') status.textContent = 'Browser Voice fallback';
 });
-
-voice.addEventListener('partial', (event) => {
-  const input = document.getElementById('msg');
-  if (input) input.value = event.detail.text || '';
-});
-voice.addEventListener('transcript', (event) => {
-  const input = document.getElementById('msg');
-  if (input) {
-    input.value = event.detail.text || '';
-    input.focus();
-  }
-});
-
+voice.addEventListener('partial', (event) => { const input = document.getElementById('msg'); if (input) input.value = event.detail.text || ''; });
+voice.addEventListener('transcript', (event) => { const input = document.getElementById('msg'); if (input) { input.value = event.detail.text || ''; input.focus(); } });
 voiceButton.addEventListener('click', () => {
   if (voice.state === 'browser-listening') return voice.stopBrowserListening();
-  if (provider.xiaozhi?.configured) {
-    voice.connect();
-    return;
-  }
+  if (provider.xiaozhi?.configured) { voice.connect(); return; }
   voice.startBrowserListening();
 });
-
 if (provider.xiaozhi?.configured) voice.connect();
 window.AIOfficeV17 = { install, voice };
