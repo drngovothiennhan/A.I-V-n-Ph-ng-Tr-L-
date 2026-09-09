@@ -3,9 +3,10 @@
   "cleanUrls": true,
   "rewrites": [
     { "source": "/", "destination": "/api/app" },
-    { "source": "/manifest.webmanifest", "destination": "/public/manifest.webmanifest" },
-    { "source": "/sw.js", "destination": "/public/sw.js" },
-    { "source": "/icons/:path*", "destination": "/public/icons/:path*" }
+    { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
+    { "source": "/sw.js", "destination": "/api/asset?path=public/sw.js" },
+    { "source": "/icons/:path*", "destination": "/api/asset?path=public/icons/:path*" },
+    { "source": "/src/:path*", "destination": "/api/asset?path=src/:path*" }
   ],
   "headers": [
     {
