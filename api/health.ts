@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     status: 'ok',
-    release: '1.7.1-second-brain-voice-fabric',
+    release: '1.8.0-continuous-second-brain',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -28,14 +28,20 @@ export default async function handler(req: any, res: any) {
       approvedOnly: true,
       localRag: true,
       driveCanonical: true,
+      externalResearch: ['Wikipedia vi', 'Wikipedia en', 'DuckDuckGo Instant Answer', 'PubMed when medical'],
+      intentRouter: ['question', 'task'],
+      conversationMemory: true,
       fineTuning: false
     },
     voice: {
       xiaozhiFabric: true,
+      continuousConversation: true,
+      autoResumeAfterTts: true,
       browserFallback: true,
-      realtimeConfigured: providers.xiaozhi.configured
+      externalUpstreamConfigured: providers.xiaozhi.configured
     },
-    artifacts: ['docx', 'xlsx', 'pptx', 'png-client'],
+    defaultOutput: 'conversation',
+    explicitArtifacts: ['docx', 'xlsx', 'pptx', 'pdf', 'png'],
     providers,
     timestamp: new Date().toISOString()
   });
