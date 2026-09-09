@@ -1,6 +1,8 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { createRequire } from 'node:module';
 
+const require = createRequire(import.meta.url);
 const MAX_BODY = 64 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
 
@@ -110,7 +112,7 @@ async function artifact(body, res) {
   }
 
   if (format === 'pptx') {
-    const PptxGenJS: any = (await import('pptxgenjs')).default;
+    const PptxGenJS = require('pptxgenjs');
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_WIDE';
     pptx.author = 'A.I Văn phòng';
