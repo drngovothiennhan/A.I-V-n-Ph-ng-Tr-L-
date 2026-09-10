@@ -28,7 +28,7 @@ async function bootKnowledgeRouter() {
     const weather = await import('./weather-bridge-v21.js?v=211');
     await import('./interaction-runtime-v22.js?v=220');
     await import('./interaction-control-v21.js?v=211');
-    await import('./credential-setup-v22.js?v=222');
+    await import('./credential-setup-v22.js?v=223');
     await import('./product-completion-v24.js?v=240');
     await import('./voice-render-bridge-v23.js?v=230');
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
