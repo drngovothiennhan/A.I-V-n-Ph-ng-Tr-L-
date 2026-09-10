@@ -121,4 +121,4 @@ jobs:
           node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery') process.exit(1); console.log('health ok:',h.productCompletion)"
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
           node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('artifact selftest ok:',t.engine)"
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/src/multisource-orchestrator-v26.js | grep -q "2.6.1-multisource-orchestrator"
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/src/multisource-orchestrator-v26.js | grep -q "2.6.2-multisource-orchestrator"
