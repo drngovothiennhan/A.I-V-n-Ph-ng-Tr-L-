@@ -40,7 +40,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     status: 'ok',
-    release: '1.9.0-autonomous-office-orchestrator',
+    release: '1.9.3-autonomous-office-orchestrator',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -54,17 +54,27 @@ export default async function handler(req: any, res: any) {
       driveCanonical: true,
       externalResearch: ['Wikipedia vi', 'Wikipedia en', 'DuckDuckGo Instant Answer', 'PubMed when medical'],
       intentRouter: ['question', 'admin', 'data', 'research', 'presentation', 'image', 'tech', 'general', 'continuation'],
+      continuationContext: true,
       decisionPolicy: ['execute-safe-internal', 'prepare-and-hold-irreversible'],
       workflow: ['understand', 'context', 'execute', 'qa', 'artifact-if-requested', 'approval'],
       proceduralMemory: 'approved-only',
       conversationMemory: true,
       fineTuning: false
     },
+    officeEngine: {
+      clientArtifactEngine: true,
+      structuredArtifacts: ['docx', 'xlsx', 'pptx'],
+      clientIngest: ['docx', 'xlsx', 'pptx', 'csv', 'tsv', 'txt', 'md'],
+      approvedDataCompare: true,
+      backendArtifactSourceReady: true,
+      backendIngestSourceReady: true
+    },
     quality: {
       qaGate: true,
       noSimulatedProgress: true,
       noFabricatedMetadata: true,
-      auditDecisionLog: true
+      auditDecisionLog: true,
+      irreversibleApprovalGate: true
     },
     voice: {
       xiaozhiFabric: true,
