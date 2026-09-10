@@ -1,12 +1,13 @@
 {
   "name": "ai-office-xiaozhi-render-gateway",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
+    "check": "node --check server.js",
+    "test": "node ../../tests/xiaozhi-gateway-v24.test.mjs"
   },
   "dependencies": {
     "ws": "^8.18.3"
