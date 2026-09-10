@@ -1,6 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "env": {
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "XIAOZHI_PROTOCOL_VERSION": "1"
+  },
   "rewrites": [
     { "source": "/", "destination": "/api/app" },
     { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
