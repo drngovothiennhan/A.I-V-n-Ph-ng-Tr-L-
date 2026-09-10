@@ -29,16 +29,27 @@ async function probeGemini() {
     headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
-      generationConfig: { temperature: 0, maxOutputTokens: 16 }
+      generationConfig: {
+        maxOutputTokens: 256,
+        thinkingConfig: { thinkingLevel: 'low' }
+      }
     }),
-    signal: AbortSignal.timeout(10000)
+    signal: AbortSignal.timeout(15000)
   });
   if (!response.ok) {
     return { pass: false, configured: true, model, status: response.status, reason: 'GEMINI_UPSTREAM_REJECTED' };
   }
   const data: any = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('').trim() || '';
-  return { pass: Boolean(text), configured: true, model, responseReceived: Boolean(text) };
+  const candidate = data?.candidates?.[0] || {};
+  const text = candidate?.content?.parts?.map((p: any) => p?.text || '').join('').trim() || '';
+  return {
+    pass: Boolean(text),
+    configured: true,
+    model,
+    responseReceived: Boolean(text),
+    finishReason: candidate?.finishReason || null,
+    promptBlocked: Boolean(data?.promptFeedback?.blockReason)
+  };
 }
 
 async function probeXiaozhi() {
@@ -57,13 +68,12 @@ async function probeXiaozhi() {
 
   const clientId = process.env.XIAOZHI_CLIENT_ID || `ai-office-probe-${randomUUID()}`;
   const deviceId = process.env.XIAOZHI_DEVICE_ID || `web-probe-${randomUUID()}`;
-  const usingRenderDefault = target.hostname === 'ai-office-xiaozhi-gateway.onrender.com';
   const headers: Record<string, string> = {
     'Protocol-Version': protocolVersion,
     'Client-Id': clientId,
     'Device-Id': deviceId,
     'User-Agent': 'AI-Office-XiaoZhi-Probe/2.3',
-    Origin: usingRenderDefault ? PRODUCTION_ORIGIN : PRODUCTION_ORIGIN
+    Origin: PRODUCTION_ORIGIN
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
