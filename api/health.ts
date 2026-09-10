@@ -1,3 +1,5 @@
+import { DRIVE_BRAIN_REGISTRY } from './_drive-registry.js';
+
 export const config = { runtime: 'nodejs' };
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
@@ -23,12 +25,12 @@ function groundedImageModel() {
 async function probeVoiceRender() {
   try {
     const response = await fetch(VOICE_RENDER_HEALTH, {
-      headers: { 'user-agent': 'AI-Office-Health/1.9.3' },
+      headers: { 'user-agent': 'AI-Office-Health/2.4' },
       cache: 'no-store',
       signal: AbortSignal.timeout(5000)
     });
     if (!response.ok) return { ok: false, status: response.status, endpoint: VOICE_RENDER_HEALTH };
-    const data: any = await response.json();
+    const data = await response.json();
     return {
       ok: Boolean(data?.ok),
       endpoint: VOICE_RENDER_HEALTH,
@@ -40,11 +42,16 @@ async function probeVoiceRender() {
       activeClients: Number.isFinite(Number(data?.activeClients)) ? Number(data.activeClients) : null
     };
   } catch {
-    return { ok: false, endpoint: VOICE_RENDER_HEALTH, websocketUrl: VOICE_RENDER_WS, reason: 'VOICE_RENDER_UNREACHABLE' };
+    return {
+      ok: false,
+      endpoint: VOICE_RENDER_HEALTH,
+      websocketUrl: VOICE_RENDER_WS,
+      reason: 'VOICE_RENDER_UNREACHABLE'
+    };
   }
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -52,15 +59,15 @@ export default async function handler(req: any, res: any) {
 
   const driveRuntimeConfigured = Boolean(process.env.DRIVE_BRAIN_BRIDGE_URL && process.env.DRIVE_BRAIN_TOKEN);
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
-  const model = geminiModel();
   const voiceRender = await probeVoiceRender();
+
   const providers = {
     local: { configured: true, mode: 'safe-fallback', costTier: 'zero-model' },
     publicResearch: { configured: true, mode: 'sanitized-fallback', costTier: 'zero-model' },
     gemini: {
       configured: geminiConfigured,
       mode: 'cost-aware-grounded-reasoning',
-      model,
+      model: geminiModel(),
       economyModel: economyModel(),
       routing: ['zero-model-public-fast-path', 'economy', 'reasoning'],
       googleSearchGrounding: geminiConfigured
@@ -78,7 +85,7 @@ export default async function handler(req: any, res: any) {
       runtimeReady: Boolean(voiceRender.ok),
       authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN || voiceRender.trustedOriginMode),
       mode: 'render-direct-wss',
-      source: process.env.XIAOZHI_WS_URL ? 'vercel-env-override' : 'render-direct-default',
+      source: process.env.XIAOZHI_WS_URL ? 'runtime-override' : 'render-direct-default',
       endpoint: VOICE_RENDER_WS,
       protocolVersion: voiceRender.protocolVersion || process.env.XIAOZHI_PROTOCOL_VERSION || '1',
       voiceRenderVersion: '2.3',
@@ -86,49 +93,17 @@ export default async function handler(req: any, res: any) {
       trustedOriginMode: Boolean(voiceRender.trustedOriginMode),
       browserFallback: true
     },
-    voiceRender: {
-      configured: true,
-      runtimeReady: Boolean(voiceRender.ok),
-      mode: 'direct-websocket-gateway',
-      version: '2.3',
-      endpoint: VOICE_RENDER_WS,
-      healthEndpoint: VOICE_RENDER_HEALTH,
-      gatewayRelease: voiceRender.release,
-      trustedOriginMode: Boolean(voiceRender.trustedOriginMode),
-      activeClients: voiceRender.activeClients
-    },
     googleDriveRuntime: {
       configured: driveRuntimeConfigured,
       mode: 'canonical-knowledge',
-      rootId: '1q8fnN4-WYFlbGXUkRAWj8uqudNBW4qG0'
+      registryVersion: DRIVE_BRAIN_REGISTRY.version,
+      rootId: DRIVE_BRAIN_REGISTRY.root.id,
+      productionReadableScopes: [...DRIVE_BRAIN_REGISTRY.productionReadableScopes],
+      approvalPolicy: DRIVE_BRAIN_REGISTRY.approvalPolicy
     },
-    googleWorkspace: { configured: process.env.GOOGLE_WORKSPACE_ENABLED === 'true', mode: 'optional-actions' }
-  };
-
-  const setup = {
-    gemini: {
-      ready: providers.gemini.configured,
-      requiredSecrets: ['GEMINI_API_KEY'],
-      configuredDefaults: {
-        AI_OFFICE_GEMINI_MODEL: providers.gemini.model,
-        AI_OFFICE_GEMINI_ECONOMY_MODEL: providers.gemini.economyModel,
-        AI_OFFICE_GEMINI_IMAGE_MODEL: providers.imageGeneration.model
-      }
-    },
-    drive: {
-      ready: driveRuntimeConfigured,
-      requiredRuntime: ['DRIVE_BRAIN_BRIDGE_URL', 'DRIVE_BRAIN_TOKEN'],
-      bridgeSource: 'integrations/google-apps-script/DriveBrainBridge.gs'
-    },
-    xiaozhi: {
-      ready: providers.xiaozhi.runtimeReady,
-      requiredRuntime: [],
-      recommendedSecrets: ['XIAOZHI_WS_TOKEN for non-browser server clients'],
-      optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID'],
-      configuredDefaults: {
-        XIAOZHI_PROTOCOL_VERSION: providers.xiaozhi.protocolVersion,
-        VOICE_RENDER_WS: VOICE_RENDER_WS
-      }
+    googleWorkspace: {
+      configured: process.env.GOOGLE_WORKSPACE_ENABLED === 'true',
+      mode: 'optional-actions'
     }
   };
 
@@ -141,31 +116,26 @@ export default async function handler(req: any, res: any) {
     voiceRuntime: '2.3-render-xiaozhi-direct',
     productCompletion: '2.4-summary-file-image-delivery',
     dashboard: 'v1.5-approved-design',
-    pwa: {
-      standalone: true,
-      icons: ['192x192', '512x512', 'maskable-512x512'],
-      serviceWorker: true,
-      installController: true
-    },
     brain: {
       approvedOnly: true,
       localUploadRequired: false,
       localUploadRole: 'optional-supplement',
       driveCanonical: true,
       driveRuntimeConfigured,
-      sourcePolicy: ['direct_runtime', 'general_question', 'internal_question', 'admin_document', 'research_question', 'medical_question', 'data_task'],
-      externalResearch: ['Gemini Google Search grounding when configured', 'Wikipedia vi/en fallback', 'DuckDuckGo Instant Answer fallback', 'PubMed when medical'],
+      driveRegistryVersion: DRIVE_BRAIN_REGISTRY.version,
+      groundTruthScope: DRIVE_BRAIN_REGISTRY.approvalPolicy.groundTruthScope,
+      blockedProductionScopes: ['00_INBOX', '07_ARCHIVE'],
+      sourcePolicy: ['direct_runtime','general_question','internal_question','admin_document','research_question','medical_question','data_task'],
       questionFirstRouting: true,
       rawMarkupBlocked: true,
       continuationContext: true,
       decisionPolicy: ['execute-safe-internal', 'prepare-and-hold-irreversible'],
-      workflow: ['understand', 'source-policy', 'context', 'execute', 'qa', 'package', 'approval-or-deliver'],
+      workflow: ['understand','source-policy','context','execute','qa','package','approval-or-deliver'],
       proceduralMemory: 'approved-only',
-      trainingModel: 'retrieval + approved procedural memory + reflection + correction + benchmark',
       fineTuning: false
     },
     interactionModel: {
-      modes: ['question', 'task', 'hybrid', 'control', 'casual'],
+      modes: ['question','task','hybrid','control','casual'],
       confidenceAware: true,
       riskAware: true,
       answerFirstHybrid: true,
@@ -176,23 +146,36 @@ export default async function handler(req: any, res: any) {
     },
     adminStudio: {
       templateFirst: true,
-      driveScopes: ['03_TEMPLATES', '02_APPROVED', '01_KNOWLEDGE', '04_SKILLS'],
-      officialWebPriority: ['vbpl.vn', 'vanban.chinhphu.vn', 'chinhphu.vn', 'moh.gov.vn'],
+      driveScopes: ['03_TEMPLATES','02_APPROVED','01_KNOWLEDGE','04_SKILLS'],
+      officialWebPriority: ['vbpl.vn','vanban.chinhphu.vn','chinhphu.vn','moh.gov.vn'],
       noFabricatedLegalMetadata: true,
       missingFieldMarker: '[CHƯA CÓ DỮ LIỆU]'
     },
     officeEngine: {
       clientArtifactEngine: true,
-      structuredArtifacts: ['docx', 'xlsx', 'pptx', 'png'],
+      backendEngine: 'internal-office-xml-v24',
+      safeZipParser: true,
+      thirdPartyOfficeDependencies: false,
+      structuredArtifacts: ['docx','xlsx','pptx','png'],
       aiImageGeneration: providers.imageGeneration.configured,
-      clientIngest: ['docx', 'xlsx', 'pptx', 'csv', 'tsv', 'txt', 'md'],
+      clientIngest: ['docx','xlsx','pptx','csv','tsv','txt','md'],
       approvedDataCompare: true,
-      backendArtifactSourceReady: true,
-      backendIngestSourceReady: true,
-      defaultTaskOutputs: { admin:'docx', general:'docx', research:'docx', tech:'docx', data:'xlsx', presentation:'pptx', image:'png' }
+      defaultTaskOutputs: {
+        admin: 'docx',
+        general: 'docx',
+        research: 'docx',
+        tech: 'docx',
+        data: 'xlsx',
+        presentation: 'pptx',
+        image: 'png'
+      }
     },
     quality: {
       qaGate: true,
+      businessWorkflowRegression: true,
+      driveRegistryRegression: true,
+      officeRoundTripRegression: true,
+      dependencyAudit: '0-known-npm-vulnerabilities-at-build',
       noSimulatedProgress: true,
       noFabricatedMetadata: true,
       auditDecisionLog: true,
@@ -206,7 +189,6 @@ export default async function handler(req: any, res: any) {
       renderDirectWss: true,
       sameChiefRouterAsText: true,
       continuousConversation: true,
-      stateMachine: ['listening', 'understanding', 'working', 'speaking', 'done', 'blocked'],
       bargeIn: true,
       echoSuppression: true,
       transcriptDeduplication: true,
@@ -214,13 +196,25 @@ export default async function handler(req: any, res: any) {
       autoResumeAfterTts: true,
       reconnectOnNetworkReturn: true,
       heartbeatWatchdog: true,
-      browserFallback: true,
-      externalUpstreamConfigured: true
+      browserFallback: true
     },
-    defaultOutput: 'conversation',
-    explicitArtifacts: ['docx', 'xlsx', 'pptx', 'pdf', 'png'],
+    setup: {
+      gemini: {
+        ready: providers.gemini.configured,
+        requiredSecrets: ['GEMINI_API_KEY']
+      },
+      drive: {
+        ready: driveRuntimeConfigured,
+        requiredRuntime: ['DRIVE_BRAIN_BRIDGE_URL', 'DRIVE_BRAIN_TOKEN'],
+        bridgeSource: 'integrations/google-apps-script/DriveBrainBridge.gs'
+      },
+      xiaozhi: {
+        ready: providers.xiaozhi.runtimeReady,
+        requiredRuntime: [],
+        optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID']
+      }
+    },
     providers,
-    setup,
     voiceRenderProbe: voiceRender,
     timestamp: new Date().toISOString()
   });
