@@ -4,7 +4,11 @@ import { createArtifact } from './_artifact-engine.js';
 
 const MAX_BODY = 256 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
+const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 
+function geminiModel() {
+  return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
 function isPrivateIp(ip: string) {
   if (net.isIPv4(ip)) {
     const p = ip.split('.').map(Number);
@@ -40,22 +44,21 @@ async function chief(body: any) {
   if (!message) return { reply: '' };
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { reply: '', provider: 'local', fallback: true };
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = geminiModel();
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
-  endpoint.searchParams.set('key', key);
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: message }] }],
       generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
     }),
     signal: AbortSignal.timeout(30000)
   });
-  if (!response.ok) return { reply: '', provider: 'local', fallback: true, upstreamStatus: response.status };
+  if (!response.ok) return { reply: '', provider: 'local', fallback: true, upstreamStatus: response.status, model };
   const data = await response.json();
   const reply = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
-  return { reply, provider: 'gemini', fallback: false };
+  return { reply, provider: 'gemini', fallback: false, model };
 }
 
 async function webRead(body: any) {
