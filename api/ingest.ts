@@ -1,6 +1,9 @@
 import { inflateRawSync } from 'node:zlib';
 
 const MAX_FILE_BYTES = 3 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 5000;
+const MAX_ENTRY_UNCOMPRESSED = 8 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED = 24 * 1024 * 1024;
 const SUPPORTED = new Set(['docx', 'xlsx', 'pptx']);
 
 function ext(name = '') {
@@ -11,7 +14,10 @@ function decodeXml(text = '') {
     .replace(/<w:tab\/?>(?:<\/w:tab>)?/g, '\t')
     .replace(/<a:br\s*\/>/g, '\n')
     .replace(/<w:br[^>]*\/>/g, '\n')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(Number.parseInt(n, 16)))
+    .replace(/&#([0-9]+);/g, (_, n) => String.fromCodePoint(Number.parseInt(n, 10)));
 }
 function stripXml(xml = '') {
   return decodeXml(String(xml)
@@ -35,25 +41,41 @@ function unzipEntries(buf: Buffer, wanted: (name: string) => boolean) {
   const eocd = findEocd(buf);
   if (eocd < 0) throw new Error('INVALID_ZIP');
   const total = buf.readUInt16LE(eocd + 10);
+  if (total > MAX_ZIP_ENTRIES) throw new Error('ZIP_TOO_MANY_ENTRIES');
   let ptr = buf.readUInt32LE(eocd + 16);
+  let expandedTotal = 0;
   const out = new Map<string, Buffer>();
+
   for (let i = 0; i < total && ptr + 46 <= buf.length; i++) {
-    if (buf.readUInt32LE(ptr) !== 0x02014b50) break;
+    if (buf.readUInt32LE(ptr) !== 0x02014b50) throw new Error('INVALID_CENTRAL_HEADER');
     const method = buf.readUInt16LE(ptr + 10);
     const compSize = buf.readUInt32LE(ptr + 20);
+    const uncompSize = buf.readUInt32LE(ptr + 24);
     const nameLen = buf.readUInt16LE(ptr + 28);
     const extraLen = buf.readUInt16LE(ptr + 30);
     const commentLen = buf.readUInt16LE(ptr + 32);
     const localOffset = buf.readUInt32LE(ptr + 42);
-    const name = buf.subarray(ptr + 46, ptr + 46 + nameLen).toString('utf8');
+    const nameEnd = ptr + 46 + nameLen;
+    if (nameEnd > buf.length) throw new Error('INVALID_ZIP_NAME');
+    const name = buf.subarray(ptr + 46, nameEnd).toString('utf8');
+
     if (wanted(name)) {
-      if (buf.readUInt32LE(localOffset) !== 0x04034b50) throw new Error('INVALID_LOCAL_HEADER');
+      if (uncompSize > MAX_ENTRY_UNCOMPRESSED) throw new Error('ZIP_ENTRY_TOO_LARGE');
+      expandedTotal += uncompSize;
+      if (expandedTotal > MAX_TOTAL_UNCOMPRESSED) throw new Error('ZIP_EXPANSION_TOO_LARGE');
+      if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== 0x04034b50) throw new Error('INVALID_LOCAL_HEADER');
       const localNameLen = buf.readUInt16LE(localOffset + 26);
       const localExtraLen = buf.readUInt16LE(localOffset + 28);
       const start = localOffset + 30 + localNameLen + localExtraLen;
-      const compressed = buf.subarray(start, start + compSize);
-      const data = method === 0 ? compressed : method === 8 ? inflateRawSync(compressed) : null;
-      if (data) out.set(name, data);
+      const end = start + compSize;
+      if (start < 0 || end > buf.length) throw new Error('INVALID_ZIP_BOUNDS');
+      const compressed = buf.subarray(start, end);
+      let data: Buffer;
+      if (method === 0) data = compressed;
+      else if (method === 8) data = inflateRawSync(compressed, { maxOutputLength: MAX_ENTRY_UNCOMPRESSED });
+      else throw new Error('UNSUPPORTED_COMPRESSION');
+      if (data.length > MAX_ENTRY_UNCOMPRESSED) throw new Error('ZIP_ENTRY_TOO_LARGE');
+      out.set(name, data);
     }
     ptr += 46 + nameLen + extraLen + commentLen;
   }
@@ -69,22 +91,106 @@ function parsePptx(buf: Buffer) {
   const map = unzipEntries(buf, (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name));
   const slides = [...map.entries()]
     .sort((a, b) => Number(a[0].match(/slide(\d+)/)?.[1] || 0) - Number(b[0].match(/slide(\d+)/)?.[1] || 0))
+    .slice(0, 100)
     .map(([, data], i) => `[Slide ${i + 1}]\n${stripXml(data.toString('utf8'))}`);
   if (!slides.length) throw new Error('PPTX_SLIDES_MISSING');
   return slides.join('\n\n').slice(0, 120000);
 }
-async function parseXlsx(buf: Buffer) {
-  const XLSX = await import('xlsx');
-  const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, dense: true });
+function xmlAttr(attrs = '', name = '') {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(attrs).match(new RegExp(`(?:^|\\s)${escaped}="([^"]*)"`, 'i'));
+  return decodeXml(match?.[1] || '');
+}
+function textNodes(xml = '') {
+  const out: string[] = [];
+  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) out.push(decodeXml(match[1].replace(/<[^>]+>/g, '')));
+  return out.join('');
+}
+function colIndex(ref = 'A1') {
+  const letters = String(ref).match(/^[A-Z]+/i)?.[0]?.toUpperCase() || 'A';
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return Math.max(0, n - 1);
+}
+function normalizeZipPath(path = '') {
+  const out: string[] = [];
+  for (const part of String(path).replace(/\\/g, '/').split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') out.pop();
+    else out.push(part);
+  }
+  return out.join('/');
+}
+function parseXlsx(buf: Buffer) {
+  const map = unzipEntries(buf, (name) =>
+    name === 'xl/sharedStrings.xml' ||
+    name === 'xl/workbook.xml' ||
+    name === 'xl/_rels/workbook.xml.rels' ||
+    /^xl\/worksheets\/sheet\d+\.xml$/.test(name)
+  );
+  const workbook = map.get('xl/workbook.xml');
+  if (!workbook) throw new Error('XLSX_WORKBOOK_MISSING');
+
+  const shared: string[] = [];
+  const sharedXml = map.get('xl/sharedStrings.xml')?.toString('utf8') || '';
+  const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>/gi;
+  let si: RegExpExecArray | null;
+  while ((si = siRe.exec(sharedXml)) && shared.length < 200000) shared.push(textNodes(si[1]));
+
+  const relMap = new Map<string, string>();
+  const relsXml = map.get('xl/_rels/workbook.xml.rels')?.toString('utf8') || '';
+  const relRe = /<Relationship\b([^>]*)\/?\s*>/gi;
+  let rel: RegExpExecArray | null;
+  while ((rel = relRe.exec(relsXml))) {
+    const id = xmlAttr(rel[1], 'Id');
+    const target = xmlAttr(rel[1], 'Target');
+    if (id && target) relMap.set(id, target);
+  }
+
+  const workbookXml = workbook.toString('utf8');
+  const sheetRe = /<sheet\b([^>]*)\/?\s*>/gi;
   const parts: string[] = [];
-  for (const name of wb.SheetNames.slice(0, 20)) {
-    const ws = wb.Sheets[name];
-    const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '', raw: false, blankrows: false });
+  let sheet: RegExpExecArray | null;
+  let sheetCount = 0;
+  while ((sheet = sheetRe.exec(workbookXml)) && sheetCount < 20) {
+    const name = xmlAttr(sheet[1], 'name') || `Sheet ${sheetCount + 1}`;
+    const rid = xmlAttr(sheet[1], 'r:id');
+    const target = relMap.get(rid) || `worksheets/sheet${sheetCount + 1}.xml`;
+    const path = normalizeZipPath(target.startsWith('/') ? target.slice(1) : `xl/${target}`);
+    const data = map.get(path);
+    sheetCount += 1;
+    if (!data) continue;
+
     parts.push(`[Sheet: ${name}]`);
-    for (const row of rows.slice(0, 1500)) {
-      parts.push(row.map((v) => String(v ?? '').replace(/\t/g, ' ')).join('\t'));
+    const xml = data.toString('utf8');
+    const rowRe = /<row\b[^>]*>([\s\S]*?)<\/row>/gi;
+    let row: RegExpExecArray | null;
+    let rowCount = 0;
+    while ((row = rowRe.exec(xml)) && rowCount < 1500) {
+      const cells: string[] = [];
+      const cellRe = /<c\b([^>]*)>([\s\S]*?)<\/c>/gi;
+      let cell: RegExpExecArray | null;
+      while ((cell = cellRe.exec(row[1]))) {
+        const ref = xmlAttr(cell[1], 'r') || 'A1';
+        const type = xmlAttr(cell[1], 't');
+        const idx = colIndex(ref);
+        const body = cell[2];
+        const valueMatch = body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/i);
+        const raw = decodeXml(valueMatch?.[1]?.replace(/<[^>]+>/g, '') || '');
+        let value = raw;
+        if (type === 's') value = shared[Number(raw)] || '';
+        else if (type === 'inlineStr') value = textNodes(body);
+        else if (type === 'b') value = raw === '1' ? 'TRUE' : raw === '0' ? 'FALSE' : raw;
+        cells[idx] = String(value).replace(/\t/g, ' ');
+      }
+      parts.push(cells.map((v) => v ?? '').join('\t'));
+      rowCount += 1;
+      if (parts.join('\n').length > 180000) break;
     }
   }
+  if (!parts.length) throw new Error('XLSX_SHEETS_MISSING');
   return parts.join('\n').slice(0, 160000);
 }
 
@@ -106,9 +212,9 @@ export default async function handler(req: any, res: any) {
     let text = '';
     if (extension === 'docx') text = parseDocx(data);
     else if (extension === 'pptx') text = parsePptx(data);
-    else text = await parseXlsx(data);
+    else text = parseXlsx(data);
 
-    return res.status(200).json({ name, extension, text, textLength: text.length, parser: `office-v19-${extension}` });
+    return res.status(200).json({ name, extension, text, textLength: text.length, parser: `office-v24-safe-${extension}` });
   } catch (error: any) {
     console.error('ingest_error', { message: String(error?.message || error).slice(0, 220) });
     return res.status(422).json({ error: 'FILE_PARSE_FAILED' });
