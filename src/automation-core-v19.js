@@ -28,7 +28,7 @@ function uid() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 function normalize(text) {
-  return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
 }
 function getJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
@@ -57,11 +57,17 @@ function continuationIntent(n, context) {
 function classifyIntent(text, context = {}) {
   const raw = String(text || '').trim();
   const n = normalize(raw);
-  const docType = inferDocType(raw);
+  const continuation = continuationIntent(n, context);
+  const last = context?.lastTask || null;
+  let docType = inferDocType(raw);
   let kind = 'question';
   let score = 0.58;
 
-  if (continuationIntent(n, context)) { kind = context.lastTask?.kind || 'general'; score = 0.91; }
+  if (continuation) {
+    kind = last?.intent?.kind || last?.category || last?.kind || 'general';
+    docType = last?.intent?.docType || last?.plan?.docType || docType;
+    score = 0.97;
+  }
   else if (docType) { kind = 'admin'; score = 0.94; }
   else if (/\b(excel|xlsx|csv|bang tinh|du lieu|doi chieu|loc danh sach|tong hop so lieu|phan tich du lieu)\b/.test(n)) { kind = 'data'; score = 0.92; }
   else if (/\b(pptx|powerpoint|slide|trinh bay|thuyet trinh)\b/.test(n)) { kind = 'presentation'; score = 0.91; }
@@ -71,16 +77,19 @@ function classifyIntent(text, context = {}) {
   else if (/^(hay|vui long|giup|lam|tao|soan|viet|xuat|loc|doi chieu|kiem tra|phan tich|trien khai|nang cap|sua|cap nhat|ket noi|lap|chuan bi|thuc hien|thi hanh)\b/.test(n)) { kind = 'general'; score = 0.82; }
   else if (/\?$/.test(raw) || /^(ai|gi|nao|tai sao|vi sao|khi nao|o dau|bao nhieu|the nao|co phai|giai thich|cho toi biet)\b/.test(n)) { kind = 'question'; score = 0.92; }
 
-  const artifactFormats = inferArtifact(raw, kind);
-  const irreversible = /\b(gui email|gui thu|gui cong van|cong bo|dang len|xoa|ky so|phe duyet|thanh toan|nop ho so|phat hanh)\b/.test(n);
-  const urgency = /\b(khan|gap|ngay lap tuc|ngay bay gio|uu tien cao)\b/.test(n) ? 'urgent' : 'normal';
-  const userWantsFile = artifactFormats.length > 0;
+  let artifactFormats = inferArtifact(raw, kind);
+  if (continuation && last?.artifactFormats?.length) artifactFormats = [...last.artifactFormats];
+  const irreversibleNow = /\b(gui email|gui thu|gui cong van|cong bo|dang len|xoa|ky so|phe duyet|thanh toan|nop ho so|phat hanh)\b/.test(n);
+  const irreversible = irreversibleNow || Boolean(continuation && last?.intent?.irreversible);
+  const urgency = /\b(khan|gap|ngay lap tuc|ngay bay gio|uu tien cao)\b/.test(n) ? 'urgent' : (continuation && last?.priority === 'urgent' ? 'urgent' : 'normal');
+  const userWantsFile = artifactFormats.length > 0 || Boolean(continuation && last?.requestedArtifact);
   const action = kind === 'question' ? 'answer' : (irreversible ? 'prepare_and_hold' : 'execute');
-  return { kind, confidence: score, docType, artifactFormats, urgency, irreversible, userWantsFile, action };
+  return { kind, confidence: score, docType, artifactFormats, urgency, irreversible, userWantsFile, action, continuation, continuationOf: continuation ? last?.id : undefined };
 }
 function contextSnapshot() {
   const tasks = getJson(TASK_KEY, []);
-  const lastTask = tasks.find(t => t?.v19);
+  const raw = tasks.find(t => t?.v19) || null;
+  const lastTask = raw ? { ...raw, kind: raw.kind || raw.intent?.kind || raw.category || 'general' } : null;
   return { lastTask };
 }
 function planFor(intent, text) {
@@ -369,13 +378,30 @@ function learnApproved(task) {
   });
   setJson(PROC_KEY, list.slice(0,200));
 }
+function continuationExecutionText(text, last) {
+  if (!last) return text;
+  const root = String(last.rootInstruction || last.originalMessage || last.title || '').trim();
+  const previous = String(last.outputDraft || '').slice(0,7000).trim();
+  return [
+    root ? `Nhiệm vụ gốc: ${root}` : '',
+    previous ? `Kết quả đã thực hiện trước đó:\n${previous}` : '',
+    `Yêu cầu tiếp nối: ${String(text || '').trim()}`,
+    'Tiếp tục đúng phần còn thiếu. Không khởi động lại từ đầu và không làm mất các ràng buộc/dữ liệu đã xác nhận.'
+  ].filter(Boolean).join('\n\n');
+}
 async function executeTask(text, options = {}) {
   const ctx = contextSnapshot();
   const intent = classifyIntent(text, ctx);
-  const plan = planFor(intent, text);
+  const last = intent.continuation ? ctx.lastTask : null;
+  const executionText = intent.continuation ? continuationExecutionText(text, last) : text;
+  const plan = planFor(intent, executionText);
   const task = {
-    id: uid(), v19: true, title: cleanSubject(text).slice(0,96) || 'Nhiệm vụ',
-    originalMessage: text, category: intent.kind, intent, plan,
+    id: uid(), v19: true, kind: intent.kind,
+    title: intent.continuation && last ? `Tiếp tục: ${String(last.title || last.originalMessage || 'nhiệm vụ').slice(0,78)}` : (cleanSubject(text).slice(0,96) || 'Nhiệm vụ'),
+    originalMessage: text,
+    rootInstruction: intent.continuation && last ? (last.rootInstruction || last.originalMessage || last.title || '') : text,
+    continuationOf: intent.continuation ? last?.id : undefined,
+    category: intent.kind, intent, plan,
     deptIds: plan.departments, artifactFormats: intent.artifactFormats,
     outputMode: intent.userWantsFile ? 'artifact' : 'conversation',
     requestedArtifact: intent.userWantsFile, priority: intent.urgency,
@@ -387,17 +413,21 @@ async function executeTask(text, options = {}) {
   window.render?.();
 
   updateStep(plan,'context','running'); task.progress = 28; task.status='planning'; setJson(TASK_KEY,tasks); window.render?.();
-  const localContext = (() => { try { return typeof window.ctx === 'function' ? String(window.ctx(text) || '') : ''; } catch { return ''; } })();
+  const localContext = (() => { try { return typeof window.ctx === 'function' ? String(window.ctx(executionText) || '') : ''; } catch { return ''; } })();
   updateStep(plan,'context','done');
 
   updateStep(plan,'execute','running'); task.progress=48; task.status='executing'; setJson(TASK_KEY,tasks); window.render?.();
-  const aiDraft = await providerDraft(text, intent, plan, localContext);
-  task.outputDraft = aiDraft || localDraft(text, intent);
+  const aiDraft = await providerDraft(executionText, intent, plan, localContext);
+  const fallbackInput = intent.continuation && last ? String(last.rootInstruction || last.originalMessage || text) : text;
+  task.outputDraft = aiDraft || localDraft(fallbackInput, intent);
+  if (intent.continuation && !aiDraft && last?.outputDraft) {
+    task.outputDraft = `${task.outputDraft}\n\nGHI CHÚ TIẾP NỐI\nHệ thống đang chạy Local Safe Engine; đã bảo toàn loại nhiệm vụ, định dạng đầu ra và ràng buộc của công việc trước. Khi provider suy luận được cấu hình, phần nội dung tiếp nối sẽ được tổng hợp theo toàn bộ kết quả trước đó.`;
+  }
   task.engine = aiDraft ? 'gemini' : 'local-safe';
   updateStep(plan,'execute','done');
 
   updateStep(plan,'qa','running'); task.progress=78; task.status='verifying'; setJson(TASK_KEY,tasks); window.render?.();
-  task.qa = qaCheck(task.outputDraft, intent, text);
+  task.qa = qaCheck(task.outputDraft, intent, executionText);
   updateStep(plan,'qa',task.qa.passed ? 'done' : 'needs_review');
 
   if (intent.userWantsFile) updateStep(plan,'artifact','done');
