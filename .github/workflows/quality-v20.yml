@@ -25,6 +25,9 @@ jobs:
           node --check src/weather-bridge-v21.js
           node --check src/interaction-control-v21.js
           node --check src/voice/xiaozhi-voice-fabric.js
+          node --check src/credential-setup-v22.js
+          node --check src/voice-render-bridge-v23.js
+          node --check services/xiaozhi-render/server.js
           node --check src/release-v193.js
           cp api/research.ts /tmp/research-v20.mjs
           node --check /tmp/research-v20.mjs
