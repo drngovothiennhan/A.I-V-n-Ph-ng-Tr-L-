@@ -1,4 +1,4 @@
-name: Source Router v2 QA
+name: Source Router + Interaction QA
 
 on:
   push:
@@ -19,7 +19,12 @@ jobs:
         run: |
           node --check src/source-policy-v20.js
           node --check src/knowledge-router-v20.js
+          node --check src/interaction-policy-v21.js
+          node --check src/interaction-control-v21.js
+          node --check src/release-v193.js
           cp api/research.ts /tmp/research-v20.mjs
           node --check /tmp/research-v20.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
+      - name: Interaction regression suite
+        run: node tests/interaction-policy-v21.test.mjs
