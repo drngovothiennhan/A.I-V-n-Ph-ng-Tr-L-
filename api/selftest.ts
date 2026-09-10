@@ -3,7 +3,7 @@ import { createArtifact } from './_artifact-engine.js';
 const RELEASE = '1.9.3-autonomous-office-orchestrator';
 const FORMATS = ['docx', 'xlsx', 'pptx'];
 
-function isZipBuffer(buffer: Buffer) {
+function isZipBuffer(buffer) {
   return Buffer.isBuffer(buffer) && buffer.length > 100 && buffer.subarray(0, 4).toString('hex') === '504b0304';
 }
 
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
 
-  const result: Record<string, any> = {};
+  const result = {};
   for (const format of FORMATS) {
     try {
       const artifact = await createArtifact({
@@ -24,12 +24,12 @@ export default async function handler(req, res) {
         bytes: artifact.buffer.length,
         engine: 'internal-office-xml-v24'
       };
-    } catch (error: any) {
+    } catch (error) {
       result[format] = { pass: false, error: String(error?.message || error).slice(0, 180) };
     }
   }
 
-  const pass = Object.values(result).every((x: any) => x?.pass === true);
+  const pass = Object.values(result).every((x) => x?.pass === true);
   return res.status(pass ? 200 : 500).json({
     pass,
     release: RELEASE,
