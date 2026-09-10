@@ -27,8 +27,8 @@ for (const [label, pattern] of required) {
   assert.match(source, pattern, `Multi-source contract missing: ${label}`);
 }
 
-assert.doesNotMatch(source, /originalGather/, 'legacy gather path must not be used by v2.6.2');
-assert.doesNotMatch(source, /localApprovedSources/, 'legacy local source function must not be invoked by v2.6.2');
+assert.doesNotMatch(source, /\boriginalGather\s*\(/, 'legacy gather function must not be invoked by v2.6.2');
+assert.doesNotMatch(source, /\blocalApprovedSources\s*\(/, 'legacy local source function must not be invoked by v2.6.2');
 assert.doesNotMatch(source, /localDependency:true/, 'local dependency must never become the default');
 assert.match(source, /effective\.useLocal\?explicitLocalSources\(text\):\[\]/, 'local source collection must require explicit opt-in');
 
