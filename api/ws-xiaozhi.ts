@@ -48,7 +48,7 @@ wss.on('connection', (client) => {
       'Protocol-Version': protocolVersion,
       'Client-Id': identity.clientId,
       'Device-Id': identity.deviceId,
-      'User-Agent': 'AI-Office-XiaoZhi-Bridge/1.8'
+      'User-Agent': 'AI-Office-XiaoZhi-Bridge/1.9.3'
     };
     if (upstreamToken) headers.Authorization = `Bearer ${upstreamToken}`;
 
