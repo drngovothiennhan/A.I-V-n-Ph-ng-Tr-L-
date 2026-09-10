@@ -1,6 +1,6 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import { createArtifact } from './_artifact-engine';
+import { createArtifact } from './_artifact-engine.js';
 
 const MAX_BODY = 256 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
@@ -38,14 +38,11 @@ function cleanText(input: unknown, max = 12000) {
 async function chief(body: any) {
   const message = cleanText(body?.message, 24000);
   if (!message) return { reply: '' };
-
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { reply: '', provider: 'local', fallback: true };
-
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
   endpoint.searchParams.set('key', key);
-
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -65,7 +62,7 @@ async function webRead(body: any) {
   const url = await assertPublicUrl(cleanText(body?.url, 2048));
   const response = await fetch(url, {
     redirect: 'follow',
-    headers: { 'user-agent': 'AI-Office/1.9 (+https://ai-van-phong-tro-ly.vercel.app)' },
+    headers: { 'user-agent': 'AI-Office/1.9.3 (+https://ai-van-phong-tro-ly.vercel.app)' },
     signal: AbortSignal.timeout(12000)
   });
   if (!response.ok) throw new Error(`UPSTREAM_${response.status}`);
@@ -87,7 +84,7 @@ async function artifact(body: any, res: any) {
     const result = await createArtifact(body);
     res.setHeader('content-type', result.mime);
     res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
-    res.setHeader('x-ai-office-artifact-engine', 'v1.9-structured');
+    res.setHeader('x-ai-office-artifact-engine', 'v1.9.3-structured');
     return res.status(200).send(result.buffer);
   } catch (error: any) {
     if (error?.code === 'UNSUPPORTED_ARTIFACT_FORMAT') {
@@ -101,13 +98,10 @@ export default async function handler(req: any, res: any) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
-
   const op = String(req.query.op || '');
   if (!ALLOWED_OPS.has(op)) return res.status(400).json({ error: 'INVALID_OP' });
-
   const size = Number(req.headers['content-length'] || 0);
   if (size > MAX_BODY) return res.status(413).json({ error: 'PAYLOAD_TOO_LARGE' });
-
   try {
     if (op === 'chief') return res.status(200).json(await chief(req.body));
     if (op === 'web') return res.status(200).json(await webRead(req.body));
