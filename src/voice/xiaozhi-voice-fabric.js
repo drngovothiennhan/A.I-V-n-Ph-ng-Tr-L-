@@ -19,13 +19,26 @@ export class XiaozhiVoiceFabric extends EventTarget {
     this.ws=null;
     this.manualClose=false;
     this.reconnectAttempt=0;
+    this.reconnectTimer=null;
     this.heartbeat=null;
+    this.lastPongAt=0;
     this.recognition=null;
     this.recognitionActive=false;
     this.state='idle';
     this.speaking=false;
     this.currentSpeech='';
     this.resumeListeningAfterSpeech=false;
+    this.onlineHandler=()=>{
+      if(this.manualClose||!this.wsUrl)return;
+      if(this.ws&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(this.ws.readyState))return;
+      if(this.reconnectTimer){clearTimeout(this.reconnectTimer);this.reconnectTimer=null;}
+      this.reconnectAttempt=0;
+      this.connect();
+    };
+    window.addEventListener('online',this.onlineHandler);
+    window.addEventListener('offline',()=>{
+      if(!this.manualClose)this.emitState('fallback',{reason:'network_offline'});
+    });
     this.initBrowserFallback();
   }
 
@@ -89,16 +102,24 @@ export class XiaozhiVoiceFabric extends EventTarget {
   connect() {
     if(!this.wsUrl){this.emitState('fallback',{reason:'xiaozhi_not_configured'});return false}
     if(this.ws&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(this.ws.readyState))return true;
+    if(this.reconnectTimer){clearTimeout(this.reconnectTimer);this.reconnectTimer=null;}
+    if(!navigator.onLine){this.emitState('fallback',{reason:'network_offline'});return false;}
     this.manualClose=false;this.emitState('connecting');
     const ws=new WebSocket(this.wsUrl);ws.binaryType='arraybuffer';this.ws=ws;
-    ws.onopen=()=>{this.reconnectAttempt=0;this.emitState('connected',{provider:'xiaozhi'});this.startHeartbeat();ws.send(JSON.stringify({type:'hello',client:'ai-office-pwa',language:this.language}))};
+    ws.onopen=()=>{this.reconnectAttempt=0;this.lastPongAt=Date.now();this.emitState('connected',{provider:'xiaozhi'});this.startHeartbeat();ws.send(JSON.stringify({type:'hello',client:'ai-office-pwa',language:this.language}))};
     ws.onmessage=(event)=>{
       if(typeof event.data==='string'){
         let msg;try{msg=JSON.parse(event.data)}catch{msg={type:'text',text:event.data}}
+        if(msg.type==='pong'){this.lastPongAt=Date.now();return;}
+        if(msg.type==='ping'){
+          this.lastPongAt=Date.now();
+          if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'pong',at:Date.now()}));
+          return;
+        }
         if(msg.type==='partial')this.dispatchEvent(new CustomEvent('partial',{detail:{text:msg.text||'',provider:'xiaozhi'}}));
         else if(msg.type==='transcript')this.dispatchEvent(new CustomEvent('transcript',{detail:{text:msg.text||'',provider:'xiaozhi'}}));
         else if(msg.type==='assistant')this.dispatchEvent(new CustomEvent('assistant',{detail:msg}));
-        else if(msg.type!=='pong')this.dispatchEvent(new CustomEvent('message',{detail:msg}));
+        else this.dispatchEvent(new CustomEvent('message',{detail:msg}));
       }else this.dispatchEvent(new CustomEvent('audio',{detail:{data:event.data,provider:'xiaozhi'}}));
     };
     ws.onerror=()=>this.dispatchEvent(new CustomEvent('error',{detail:{provider:'xiaozhi',error:'websocket'}}));
@@ -106,10 +127,27 @@ export class XiaozhiVoiceFabric extends EventTarget {
     return true;
   }
 
-  scheduleReconnect(){if(this.manualClose||!this.wsUrl)return;const n=Math.min(this.reconnectAttempt++,8),wait=Math.min(this.reconnectMaxMs,this.reconnectBaseMs*(2**n))+Math.floor(Math.random()*300);setTimeout(()=>{if(!this.manualClose&&navigator.onLine)this.connect()},wait)}
-  startHeartbeat(){this.stopHeartbeat();this.heartbeat=setInterval(()=>{if(this.ws?.readyState===WebSocket.OPEN)this.ws.send(JSON.stringify({type:'ping',at:Date.now()}))},20000)}
+  scheduleReconnect(){
+    if(this.manualClose||!this.wsUrl||this.reconnectTimer)return;
+    const n=Math.min(this.reconnectAttempt++,8);
+    const wait=Math.min(this.reconnectMaxMs,this.reconnectBaseMs*(2**n))+Math.floor(Math.random()*300);
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectTimer=null;
+      if(this.manualClose)return;
+      if(navigator.onLine)this.connect();
+    },wait);
+  }
+  startHeartbeat(){
+    this.stopHeartbeat();
+    this.lastPongAt=Date.now();
+    this.heartbeat=setInterval(()=>{
+      if(this.ws?.readyState!==WebSocket.OPEN)return;
+      if(Date.now()-this.lastPongAt>45000){try{this.ws.close(4000,'heartbeat_timeout')}catch{}return;}
+      this.ws.send(JSON.stringify({type:'ping',at:Date.now()}));
+    },20000);
+  }
   stopHeartbeat(){if(this.heartbeat)clearInterval(this.heartbeat);this.heartbeat=null}
-  close(){this.manualClose=true;this.stopHeartbeat();if(this.ws)this.ws.close(1000,'client_close');this.ws=null;this.emitState('idle')}
+  close(){this.manualClose=true;this.stopHeartbeat();if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.ws)this.ws.close(1000,'client_close');this.ws=null;this.emitState('idle')}
 
   startBrowserListening(){
     if(!this.recognition){this.emitState('unavailable',{reason:'speech_recognition_unsupported'});return false}
