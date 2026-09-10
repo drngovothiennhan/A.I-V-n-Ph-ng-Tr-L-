@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 
 const RELEASE = '1.9.3-autonomous-office-orchestrator';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 
+function geminiModel() {
+  return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
 function json(res: any, status: number, body: any) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
@@ -11,17 +15,16 @@ function json(res: any, status: number, body: any) {
 
 async function probeGemini() {
   const key = process.env.GEMINI_API_KEY || '';
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = geminiModel();
   if (!key) return { pass: false, configured: false, reason: 'GEMINI_API_KEY_MISSING', model };
 
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
-  endpoint.searchParams.set('key', key);
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
-      generationConfig: { temperature: 0, maxOutputTokens: 8 }
+      generationConfig: { temperature: 0, maxOutputTokens: 16 }
     }),
     signal: AbortSignal.timeout(10000)
   });
@@ -83,7 +86,7 @@ export default async function handler(req: any, res: any) {
     release: RELEASE,
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: geminiModel(),
       missing: process.env.GEMINI_API_KEY ? [] : ['GEMINI_API_KEY']
     },
     xiaozhi: {
