@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - run: npm install --ignore-scripts
       - name: Syntax checks
         run: |
@@ -40,3 +40,53 @@ jobs:
         run: node tests/interaction-policy-v21.test.mjs
       - name: Interaction v2.2 regression suite
         run: node tests/interaction-policy-v22.test.mjs
+      - name: Dependency audit snapshot
+        run: npm audit --omit=dev --audit-level=critical || true
+
+  deploy-production:
+    needs: source-policy
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check deployment credential
+        id: credential
+        shell: bash
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "VERCEL_TOKEN is not configured; production deploy is skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Vercel CLI
+        if: steps.credential.outputs.available == 'true'
+        run: npm install --global vercel@latest
+      - name: Pull production configuration
+        if: steps.credential.outputs.available == 'true'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build production bundle
+        if: steps.credential.outputs.available == 'true'
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy validated bundle
+        if: steps.credential.outputs.available == 'true'
+        id: deploy
+        shell: bash
+        run: |
+          URL="$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Production deployment: $URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Production smoke test
+        if: steps.credential.outputs.available == 'true'
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 https://ai-van-phong-tro-ly.vercel.app/api/health > /tmp/health.json
+          node -e "const h=require('/tmp/health.json'); if(h.status!=='ok') process.exit(1); console.log('health ok:',h.productCompletion||h.release)"
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
+          node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true) process.exit(1); console.log('artifact selftest ok')"
