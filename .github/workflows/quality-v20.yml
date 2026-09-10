@@ -50,8 +50,7 @@ jobs:
           node --check /tmp/ingest-v24.mjs
           cp api/selftest.ts /tmp/selftest-v24.mjs
           node --check /tmp/selftest-v24.mjs
-          cp api/provider-check.ts /tmp/provider-check-v25.mjs
-          node --check /tmp/provider-check-v25.mjs
+          node --check api/provider-check.ts
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
