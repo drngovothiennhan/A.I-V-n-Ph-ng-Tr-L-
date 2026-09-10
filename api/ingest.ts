@@ -6,7 +6,7 @@ function ext(name = '') {
   return String(name).split('.').pop()?.toLowerCase() || '';
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
       textLength: text.length,
       parser: `office-v24-safe-${extension}`
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('ingest_error', { message: String(error?.message || error).slice(0, 220) });
     return res.status(422).json({ error: 'FILE_PARSE_FAILED' });
   }
