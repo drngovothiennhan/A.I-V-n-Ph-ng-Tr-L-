@@ -12,8 +12,12 @@ export function semanticTokens(text='') {
 
 export function isWeatherQuery(text='') {
   const n = normalizeV21(text);
-  return /\b(thoi tiet|mua|mua rao|mua dong|mua lon|nang|nhiet do|du bao|bao|gio manh|do am|uv|nong|lanh)\b/.test(n) &&
-    (/\b(hom nay|ngay mai|bay gio|chieu nay|toi nay|sang nay|du bao|thoi tiet|mua|nang|nhiet do)\b/.test(n));
+  const conceptual = /\b(khai niem|giai thich|dinh nghia|la gi|nghia la gi)\b/.test(n);
+  const temporal = /\b(hom nay|ngay mai|bay gio|chieu nay|toi nay|sang nay|tuan nay|du bao)\b/.test(n);
+  if (conceptual && !temporal) return false;
+  const weatherTerm = /\b(thoi tiet|mua|mua rao|mua dong|mua lon|nang|nhiet do|du bao|bao|gio manh|do am|uv|nong|lanh)\b/.test(n);
+  const forecastContext = temporal || /\b(thoi tiet|mua khong|co mua|co nang|nhiet do bao nhieu|troi co)\b/.test(n);
+  return weatherTerm && forecastContext;
 }
 
 export function explicitPlaceFromWeather(text='') {
