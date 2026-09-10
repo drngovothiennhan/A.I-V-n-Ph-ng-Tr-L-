@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const result: any = { docx: null, xlsx: null, pptx: null };
   try {
     const { Document, Packer, Paragraph } = await import('docx');
-    const doc = new Document({ sections: [{ children: [new Paragraph('A.I Văn phòng v1.8 self-test')] }] });
+    const doc = new Document({ sections: [{ children: [new Paragraph('A.I Văn phòng v1.8.1 self-test')] }] });
     const buf = await Packer.toBuffer(doc);
     result.docx = { pass: Buffer.isBuffer(buf) && buf.length > 100, bytes: buf.length };
   } catch (error: any) {
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   try {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['A.I Văn phòng v1.8 self-test']]), 'Test');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['A.I Văn phòng v1.8.1 self-test']]), 'Test');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     result.xlsx = { pass: Buffer.isBuffer(buf) && buf.length > 100, bytes: buf.length };
   } catch (error: any) {
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const PptxGenJS = require('pptxgenjs');
     const pptx = new PptxGenJS();
     const slide = pptx.addSlide();
-    slide.addText('A.I Văn phòng v1.8 self-test', { x: 0.8, y: 0.8, w: 8, h: 0.5, fontSize: 24 });
+    slide.addText('A.I Văn phòng v1.8.1 self-test', { x: 0.8, y: 0.8, w: 8, h: 0.5, fontSize: 24 });
     const out = await pptx.write({ outputType: 'nodebuffer' });
     const buf = Buffer.isBuffer(out) ? out : Buffer.from(out);
     result.pptx = { pass: buf.length > 100, bytes: buf.length };
@@ -35,5 +35,5 @@ export default async function handler(req, res) {
     result.pptx = { pass: false, error: String(error?.message || error).slice(0, 180) };
   }
   const pass = Object.values(result).every((x: any) => x?.pass === true);
-  return res.status(pass ? 200 : 500).json({ pass, release: '1.8.0-continuous-second-brain', artifacts: result, timestamp: new Date().toISOString() });
+  return res.status(pass ? 200 : 500).json({ pass, release: '1.8.1-provider-setup', artifacts: result, timestamp: new Date().toISOString() });
 }
