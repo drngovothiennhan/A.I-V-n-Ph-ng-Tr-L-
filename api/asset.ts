@@ -2,6 +2,7 @@ const OWNER = 'drngovothiennhan';
 const REPO = 'A.I-V-n-Ph-ng-Tr-L-';
 const BRANCH = 'main';
 const ALLOWED_PREFIXES = ['src/', 'public/'];
+const RELEASE = '1.9.3';
 
 function contentType(path) {
   if (path.endsWith('.js') || path.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
     const path = normalize(req.query.path);
     const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
     const upstream = await fetch(url, {
-      headers: { 'user-agent': 'AI-Office-Asset-Gateway/1.7' },
+      headers: { 'user-agent': `AI-Office-Asset-Gateway/${RELEASE}` },
       signal: AbortSignal.timeout(8000)
     });
     if (!upstream.ok) return res.status(upstream.status).send('Asset not found');
