@@ -14,9 +14,12 @@ export function isWeatherQuery(text='') {
   const n = normalizeV21(text);
   const conceptual = /\b(khai niem|giai thich|dinh nghia|la gi|nghia la gi)\b/.test(n);
   const temporal = /\b(hom nay|ngay mai|bay gio|chieu nay|toi nay|sang nay|tuan nay|du bao)\b/.test(n);
+  const storm = /\b(bao so|bao bien|ap thap nhiet doi|gio bao)\b/.test(n);
+  const adminReport = /\bbao cao\b/.test(n);
   if (conceptual && !temporal) return false;
-  const weatherTerm = /\b(thoi tiet|mua|mua rao|mua dong|mua lon|nang|nhiet do|du bao|bao|gio manh|do am|uv|nong|lanh)\b/.test(n);
+  const weatherTerm = /\b(thoi tiet|mua|mua rao|mua dong|mua lon|nang|nhiet do|du bao|gio manh|do am|uv|nong|lanh)\b/.test(n) || storm;
   const forecastContext = temporal || /\b(thoi tiet|mua khong|co mua|co nang|nhiet do bao nhieu|troi co)\b/.test(n);
+  if (adminReport && !/\b(thoi tiet|mua|nang|nhiet do|du bao thoi tiet)\b/.test(n) && !storm) return false;
   return weatherTerm && forecastContext;
 }
 
