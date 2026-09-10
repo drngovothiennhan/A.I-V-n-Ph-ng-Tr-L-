@@ -42,16 +42,16 @@ async function fetchJson(url, timeout=9000) {
 async function wiki(query, lang='vi') {
   try {
     const u = new URL(`https://${lang}.wikipedia.org/w/api.php`);
-    u.search = new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'3',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'});
+    u.search = new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'3',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'}).toString();
     const data = await fetchJson(u.toString());
-    return Object.values(data?.query?.pages || {}).map(p => ({kind:'web',source:`Wikipedia ${lang.toUpperCase()}`,title:p.title || '',url:p.fullurl || `https://${lang}.wikipedia.org/?curid=${p.pageid}`,domain:`${lang}.wikipedia.org`,text:stripMarkup(p.extract || '').slice(0,4000)})).filter(s=>s.text);
+    return (Object.values(data?.query?.pages || {}) as any[]).map((p:any) => ({kind:'web',source:`Wikipedia ${lang.toUpperCase()}`,title:p.title || '',url:p.fullurl || `https://${lang}.wikipedia.org/?curid=${p.pageid}`,domain:`${lang}.wikipedia.org`,text:stripMarkup(p.extract || '').slice(0,4000)})).filter(s=>s.text);
   } catch { return []; }
 }
 
 async function duck(query) {
   try {
     const u = new URL('https://api.duckduckgo.com/');
-    u.search = new URLSearchParams({q:query,format:'json',no_html:'1',no_redirect:'1',skip_disambig:'0'});
+    u.search = new URLSearchParams({q:query,format:'json',no_html:'1',no_redirect:'1',skip_disambig:'0'}).toString();
     const data = await fetchJson(u.toString());
     if (!data?.AbstractText) return [];
     return [{kind:'web',source:data.AbstractSource || 'DuckDuckGo',title:data.Heading || query,url:data.AbstractURL || '',domain:sourceDomain(data.AbstractURL || ''),text:stripMarkup(data.AbstractText).slice(0,4000)}];
@@ -61,12 +61,12 @@ async function duck(query) {
 async function pubmed(query) {
   try {
     const s = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi');
-    s.search = new URLSearchParams({db:'pubmed',term:query,retmax:'4',sort:'relevance',retmode:'json'});
+    s.search = new URLSearchParams({db:'pubmed',term:query,retmax:'4',sort:'relevance',retmode:'json'}).toString();
     const result = await fetchJson(s.toString());
     const ids = result?.esearchresult?.idlist || [];
     if (!ids.length) return [];
     const u = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi');
-    u.search = new URLSearchParams({db:'pubmed',id:ids.join(','),retmode:'json'});
+    u.search = new URLSearchParams({db:'pubmed',id:ids.join(','),retmode:'json'}).toString();
     const data = await fetchJson(u.toString());
     return ids.map(id => { const p=data?.result?.[id] || {}; return {kind:'scholarly',source:'PubMed',title:p.title || `PubMed ${id}`,url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,domain:'pubmed.ncbi.nlm.nih.gov',text:stripMarkup([p.title,p.fulljournalname,p.pubdate].filter(Boolean).join('. '))}; });
   } catch { return []; }
