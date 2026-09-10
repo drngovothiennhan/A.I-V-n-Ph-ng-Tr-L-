@@ -45,3 +45,18 @@ export function runLocalDataOperation(query=''){
   const text=`KẾT QUẢ ĐỐI CHIẾU DỮ LIỆU\n\nTệp A: ${da.name}\nTệp B: ${db.name}\nKhóa đối chiếu: ${pairs.map(p=>p.label).join(' + ')}\n\n- Số dòng tệp A: ${a.rows.length}\n- Số dòng tệp B: ${b.rows.length}\n- Khớp/trùng: ${matched.length}\n- Chỉ có ở tệp A: ${onlyA.length}\n- Chỉ có ở tệp B: ${onlyB.length}\n\nNguyên tắc: chỉ đối chiếu trên dữ liệu đã duyệt; không tự điền trường thiếu. Các trường hợp gần giống nhưng không khớp khóa chính xác không bị tự động coi là trùng.`;
   return {text,rows,meta:{fileA:da.name,fileB:db.name,keys:pairs.map(p=>p.label),matched:matched.length,onlyA:onlyA.length,onlyB:onlyB.length}};
 }
+
+// This module is already part of the production bootstrap import graph. Use a microtask
+// to synchronize the visible release label after the bootstrap finishes its synchronous setup.
+queueMicrotask(()=>{
+  try{
+    const footer=document.querySelector('.footer');
+    if(footer)footer.textContent='A.I VĂN PHÒNG · 1.9.3 AUTONOMOUS OFFICE ORCHESTRATOR · Dashboard v1.5 approved';
+    const status=document.getElementById('v19Status');
+    if(status&&/^v1\.9\.2\b/.test(status.textContent||''))status.textContent=(status.textContent||'').replace(/^v1\.9\.2/,'v1.9.3');
+    const bubble=document.getElementById('bubble');
+    if(bubble&&/^v1\.9\.2\b/.test(bubble.textContent||''))bubble.textContent=(bubble.textContent||'').replace(/^v1\.9\.2/,'v1.9.3');
+    document.documentElement.dataset.aiOfficeRelease='1.9.3';
+    if(window.AIOfficeV19)window.AIOfficeV19.release='1.9.3';
+  }catch{}
+});
