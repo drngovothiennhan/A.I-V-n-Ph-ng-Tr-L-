@@ -1,5 +1,37 @@
 export const config = { runtime: 'nodejs' };
 
+const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const VOICE_RENDER_HEALTH = 'https://ai-office-xiaozhi-gateway.onrender.com/health';
+const VOICE_RENDER_WS = 'wss://ai-office-xiaozhi-gateway.onrender.com/xiaozhi/v1/';
+
+function geminiModel() {
+  return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
+
+async function probeVoiceRender() {
+  try {
+    const response = await fetch(VOICE_RENDER_HEALTH, {
+      headers: { 'user-agent': 'AI-Office-Health/1.9.3' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) return { ok: false, status: response.status, endpoint: VOICE_RENDER_HEALTH };
+    const data: any = await response.json();
+    return {
+      ok: Boolean(data?.ok),
+      endpoint: VOICE_RENDER_HEALTH,
+      websocketUrl: VOICE_RENDER_WS,
+      service: data?.service || 'ai-office-xiaozhi-gateway',
+      release: data?.release || null,
+      protocolVersion: data?.protocolVersion || process.env.XIAOZHI_PROTOCOL_VERSION || '1',
+      trustedOriginMode: Boolean(data?.trustedOriginMode),
+      activeClients: Number.isFinite(Number(data?.activeClients)) ? Number(data.activeClients) : null
+    };
+  } catch {
+    return { ok: false, endpoint: VOICE_RENDER_HEALTH, websocketUrl: VOICE_RENDER_WS, reason: 'VOICE_RENDER_UNREACHABLE' };
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -7,20 +39,40 @@ export default async function handler(req: any, res: any) {
   }
 
   const driveRuntimeConfigured = Boolean(process.env.DRIVE_BRAIN_BRIDGE_URL && process.env.DRIVE_BRAIN_TOKEN);
+  const model = geminiModel();
+  const voiceRender = await probeVoiceRender();
   const providers = {
     local: { configured: true, mode: 'safe-fallback' },
     publicResearch: { configured: true, mode: 'sanitized-fallback' },
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
       mode: 'primary-grounded-reasoning',
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model,
       googleSearchGrounding: Boolean(process.env.GEMINI_API_KEY)
     },
     xiaozhi: {
-      configured: Boolean(process.env.XIAOZHI_WS_URL),
-      authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN),
-      mode: 'optional-voice-fabric',
-      protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1'
+      configured: true,
+      runtimeReady: Boolean(voiceRender.ok),
+      authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN || voiceRender.trustedOriginMode),
+      mode: 'render-direct-wss',
+      source: process.env.XIAOZHI_WS_URL ? 'vercel-env-override' : 'render-direct-default',
+      endpoint: VOICE_RENDER_WS,
+      protocolVersion: voiceRender.protocolVersion || process.env.XIAOZHI_PROTOCOL_VERSION || '1',
+      voiceRenderVersion: '2.3',
+      gatewayRelease: voiceRender.release,
+      trustedOriginMode: Boolean(voiceRender.trustedOriginMode),
+      browserFallback: true
+    },
+    voiceRender: {
+      configured: true,
+      runtimeReady: Boolean(voiceRender.ok),
+      mode: 'direct-websocket-gateway',
+      version: '2.3',
+      endpoint: VOICE_RENDER_WS,
+      healthEndpoint: VOICE_RENDER_HEALTH,
+      gatewayRelease: voiceRender.release,
+      trustedOriginMode: Boolean(voiceRender.trustedOriginMode),
+      activeClients: voiceRender.activeClients
     },
     googleDriveRuntime: {
       configured: driveRuntimeConfigured,
@@ -34,7 +86,7 @@ export default async function handler(req: any, res: any) {
     gemini: {
       ready: providers.gemini.configured,
       requiredSecrets: ['GEMINI_API_KEY'],
-      configuredDefaults: { GEMINI_MODEL: providers.gemini.model }
+      configuredDefaults: { AI_OFFICE_GEMINI_MODEL: providers.gemini.model }
     },
     drive: {
       ready: driveRuntimeConfigured,
@@ -42,11 +94,14 @@ export default async function handler(req: any, res: any) {
       bridgeSource: 'integrations/google-apps-script/DriveBrainBridge.gs'
     },
     xiaozhi: {
-      ready: providers.xiaozhi.configured,
-      requiredRuntime: ['XIAOZHI_WS_URL'],
-      recommendedSecrets: ['XIAOZHI_WS_TOKEN'],
+      ready: providers.xiaozhi.runtimeReady,
+      requiredRuntime: [],
+      recommendedSecrets: ['XIAOZHI_WS_TOKEN for non-browser server clients'],
       optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID'],
-      configuredDefaults: { XIAOZHI_PROTOCOL_VERSION: providers.xiaozhi.protocolVersion }
+      configuredDefaults: {
+        XIAOZHI_PROTOCOL_VERSION: providers.xiaozhi.protocolVersion,
+        VOICE_RENDER_WS: VOICE_RENDER_WS
+      }
     }
   };
 
@@ -56,6 +111,7 @@ export default async function handler(req: any, res: any) {
     release: '1.9.3-autonomous-office-orchestrator',
     knowledgeRouter: '2.0-unified-source-policy',
     interaction: '2.2-voice-action-orchestrator',
+    voiceRuntime: '2.3-render-xiaozhi-direct',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -114,6 +170,10 @@ export default async function handler(req: any, res: any) {
     },
     voice: {
       xiaozhiFabric: true,
+      voiceRenderVersion: '2.3',
+      renderGatewayReady: Boolean(voiceRender.ok),
+      renderGatewayRelease: voiceRender.release,
+      renderDirectWss: true,
       sameChiefRouterAsText: true,
       continuousConversation: true,
       stateMachine: ['listening', 'understanding', 'working', 'speaking', 'done', 'blocked'],
@@ -123,12 +183,13 @@ export default async function handler(req: any, res: any) {
       conciseSpokenResult: true,
       autoResumeAfterTts: true,
       browserFallback: true,
-      externalUpstreamConfigured: providers.xiaozhi.configured
+      externalUpstreamConfigured: true
     },
     defaultOutput: 'conversation',
     explicitArtifacts: ['docx', 'xlsx', 'pptx', 'pdf', 'png'],
     providers,
     setup,
+    voiceRenderProbe: voiceRender,
     timestamp: new Date().toISOString()
   });
 }
