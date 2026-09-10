@@ -32,6 +32,8 @@ jobs:
           node --check src/release-v193.js
           cp api/research.ts /tmp/research-v20.mjs
           node --check /tmp/research-v20.mjs
+          cp api/image.ts /tmp/image-v24.mjs
+          node --check /tmp/image-v24.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Interaction v2.1 regression suite
