@@ -1,7 +1,7 @@
 {
   "name": "ai-office-v19-autonomous-office-orchestrator",
   "private": true,
-  "version": "1.9.0",
+  "version": "1.9.3",
   "type": "module",
   "dependencies": {
     "docx": "^9.5.1",
