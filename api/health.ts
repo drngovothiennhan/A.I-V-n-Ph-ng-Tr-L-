@@ -55,6 +55,7 @@ export default async function handler(req: any, res: any) {
     status: 'ok',
     release: '1.9.3-autonomous-office-orchestrator',
     knowledgeRouter: '2.0-unified-source-policy',
+    interaction: '2.2-voice-action-orchestrator',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -78,6 +79,16 @@ export default async function handler(req: any, res: any) {
       proceduralMemory: 'approved-only',
       trainingModel: 'retrieval + approved procedural memory + reflection + correction + benchmark',
       fineTuning: false
+    },
+    interactionModel: {
+      modes: ['question', 'task', 'hybrid', 'control', 'casual'],
+      confidenceAware: true,
+      riskAware: true,
+      answerFirstHybrid: true,
+      sourceRelevanceGate: true,
+      cancellable: true,
+      lateResultInvalidation: true,
+      highRiskApprovalGate: true
     },
     adminStudio: {
       templateFirst: true,
@@ -105,6 +116,11 @@ export default async function handler(req: any, res: any) {
       xiaozhiFabric: true,
       sameChiefRouterAsText: true,
       continuousConversation: true,
+      stateMachine: ['listening', 'understanding', 'working', 'speaking', 'done', 'blocked'],
+      bargeIn: true,
+      echoSuppression: true,
+      transcriptDeduplication: true,
+      conciseSpokenResult: true,
       autoResumeAfterTts: true,
       browserFallback: true,
       externalUpstreamConfigured: providers.xiaozhi.configured
