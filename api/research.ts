@@ -48,7 +48,7 @@ async function wiki(query, lang='vi') {
     const u = new URL(`https://${lang}.wikipedia.org/w/api.php`);
     u.search = new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'3',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'}).toString();
     const data = await fetchJson(u.toString());
-    return (Object.values(data?.query?.pages || {}) as any[]).map((p:any) => ({kind:'web',source:`Wikipedia ${lang.toUpperCase()}`,title:p.title || '',url:p.fullurl || `https://${lang}.wikipedia.org/?curid=${p.pageid}`,domain:`${lang}.wikipedia.org`,text:stripMarkup(p.extract || '').slice(0,4000)})).filter(s=>s.text);
+    return Object.values(data?.query?.pages || {}).map((p) => ({kind:'web',source:`Wikipedia ${lang.toUpperCase()}`,title:p.title || '',url:p.fullurl || `https://${lang}.wikipedia.org/?curid=${p.pageid}`,domain:`${lang}.wikipedia.org`,text:stripMarkup(p.extract || '').slice(0,4000)})).filter(s=>s.text);
   } catch { return []; }
 }
 
