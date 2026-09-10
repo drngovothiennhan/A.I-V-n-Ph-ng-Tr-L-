@@ -1,11 +1,23 @@
 export const config = { runtime: 'nodejs' };
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_GEMINI_ECONOMY_MODEL = 'gemini-3.5-flash-lite';
+const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+const DEFAULT_GEMINI_GROUNDED_IMAGE_MODEL = 'gemini-3.1-flash-image';
 const VOICE_RENDER_HEALTH = 'https://ai-office-xiaozhi-gateway.onrender.com/health';
 const VOICE_RENDER_WS = 'wss://ai-office-xiaozhi-gateway.onrender.com/xiaozhi/v1/';
 
 function geminiModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
+function economyModel() {
+  return process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL || DEFAULT_GEMINI_ECONOMY_MODEL;
+}
+function imageModel() {
+  return process.env.AI_OFFICE_GEMINI_IMAGE_MODEL || DEFAULT_GEMINI_IMAGE_MODEL;
+}
+function groundedImageModel() {
+  return process.env.AI_OFFICE_GEMINI_GROUNDED_IMAGE_MODEL || DEFAULT_GEMINI_GROUNDED_IMAGE_MODEL;
 }
 
 async function probeVoiceRender() {
@@ -39,16 +51,27 @@ export default async function handler(req: any, res: any) {
   }
 
   const driveRuntimeConfigured = Boolean(process.env.DRIVE_BRAIN_BRIDGE_URL && process.env.DRIVE_BRAIN_TOKEN);
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
   const model = geminiModel();
   const voiceRender = await probeVoiceRender();
   const providers = {
-    local: { configured: true, mode: 'safe-fallback' },
-    publicResearch: { configured: true, mode: 'sanitized-fallback' },
+    local: { configured: true, mode: 'safe-fallback', costTier: 'zero-model' },
+    publicResearch: { configured: true, mode: 'sanitized-fallback', costTier: 'zero-model' },
     gemini: {
-      configured: Boolean(process.env.GEMINI_API_KEY),
-      mode: 'primary-grounded-reasoning',
+      configured: geminiConfigured,
+      mode: 'cost-aware-grounded-reasoning',
       model,
-      googleSearchGrounding: Boolean(process.env.GEMINI_API_KEY)
+      economyModel: economyModel(),
+      routing: ['zero-model-public-fast-path', 'economy', 'reasoning'],
+      googleSearchGrounding: geminiConfigured
+    },
+    imageGeneration: {
+      configured: geminiConfigured,
+      mode: 'economy-first-with-local-png-fallback',
+      model: imageModel(),
+      groundedModel: groundedImageModel(),
+      defaultResolution: '1K',
+      localCanvasFallback: true
     },
     xiaozhi: {
       configured: true,
@@ -86,7 +109,11 @@ export default async function handler(req: any, res: any) {
     gemini: {
       ready: providers.gemini.configured,
       requiredSecrets: ['GEMINI_API_KEY'],
-      configuredDefaults: { AI_OFFICE_GEMINI_MODEL: providers.gemini.model }
+      configuredDefaults: {
+        AI_OFFICE_GEMINI_MODEL: providers.gemini.model,
+        AI_OFFICE_GEMINI_ECONOMY_MODEL: providers.gemini.economyModel,
+        AI_OFFICE_GEMINI_IMAGE_MODEL: providers.imageGeneration.model
+      }
     },
     drive: {
       ready: driveRuntimeConfigured,
@@ -112,6 +139,7 @@ export default async function handler(req: any, res: any) {
     knowledgeRouter: '2.0-unified-source-policy',
     interaction: '2.2-voice-action-orchestrator',
     voiceRuntime: '2.3-render-xiaozhi-direct',
+    productCompletion: '2.4-summary-file-image-delivery',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -131,7 +159,7 @@ export default async function handler(req: any, res: any) {
       rawMarkupBlocked: true,
       continuationContext: true,
       decisionPolicy: ['execute-safe-internal', 'prepare-and-hold-irreversible'],
-      workflow: ['understand', 'source-policy', 'context', 'execute', 'qa', 'artifact-if-requested', 'approval'],
+      workflow: ['understand', 'source-policy', 'context', 'execute', 'qa', 'package', 'approval-or-deliver'],
       proceduralMemory: 'approved-only',
       trainingModel: 'retrieval + approved procedural memory + reflection + correction + benchmark',
       fineTuning: false
@@ -155,11 +183,13 @@ export default async function handler(req: any, res: any) {
     },
     officeEngine: {
       clientArtifactEngine: true,
-      structuredArtifacts: ['docx', 'xlsx', 'pptx'],
+      structuredArtifacts: ['docx', 'xlsx', 'pptx', 'png'],
+      aiImageGeneration: providers.imageGeneration.configured,
       clientIngest: ['docx', 'xlsx', 'pptx', 'csv', 'tsv', 'txt', 'md'],
       approvedDataCompare: true,
       backendArtifactSourceReady: true,
-      backendIngestSourceReady: true
+      backendIngestSourceReady: true,
+      defaultTaskOutputs: { admin:'docx', general:'docx', research:'docx', tech:'docx', data:'xlsx', presentation:'pptx', image:'png' }
     },
     quality: {
       qaGate: true,
@@ -182,6 +212,8 @@ export default async function handler(req: any, res: any) {
       transcriptDeduplication: true,
       conciseSpokenResult: true,
       autoResumeAfterTts: true,
+      reconnectOnNetworkReturn: true,
+      heartbeatWatchdog: true,
       browserFallback: true,
       externalUpstreamConfigured: true
     },
