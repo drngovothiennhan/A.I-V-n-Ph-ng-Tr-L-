@@ -72,13 +72,22 @@ async function probeXiaozhi() {
     'Protocol-Version': protocolVersion,
     'Client-Id': clientId,
     'Device-Id': deviceId,
-    'User-Agent': 'AI-Office-XiaoZhi-Probe/2.3',
+    'User-Agent': 'AI-Office-XiaoZhi-Probe/2.5',
     Origin: PRODUCTION_ORIGIN
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   return await new Promise((resolve) => {
     let settled = false;
+    let opened = false;
+    const base = {
+      configured: true,
+      secure: target.protocol === 'wss:',
+      tokenConfigured: Boolean(token),
+      protocolVersion,
+      endpoint: target.origin,
+      trustedOrigin: PRODUCTION_ORIGIN
+    };
     const done = (value: any) => {
       if (settled) return;
       settled = true;
@@ -87,10 +96,56 @@ async function probeXiaozhi() {
       resolve(value);
     };
     const socket = new WebSocket(target.toString(), { headers, handshakeTimeout: 6000, perMessageDeflate: false });
-    const timer = setTimeout(() => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, reason: 'XIAOZHI_CONNECT_TIMEOUT' }), 7000);
-    socket.once('open', () => done({ pass: true, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, trustedOrigin: PRODUCTION_ORIGIN }));
-    socket.once('unexpected-response', (_req, response) => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, status: response.statusCode, reason: 'XIAOZHI_HANDSHAKE_REJECTED' }));
-    socket.once('error', () => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, reason: 'XIAOZHI_CONNECTION_FAILED' }));
+    const timer = setTimeout(() => done({
+      ...base,
+      pass: opened,
+      gatewayReachable: opened,
+      upstreamConnected: false,
+      mode: opened ? 'gateway-open-status-timeout' : 'render-direct-wss',
+      reason: opened ? 'XIAOZHI_PROTOCOL_STATUS_TIMEOUT' : 'XIAOZHI_CONNECT_TIMEOUT'
+    }), 7000);
+
+    socket.once('open', () => {
+      opened = true;
+      try {
+        socket.send(JSON.stringify({ type: 'hello', client: 'ai-office-provider-check', language: 'vi-VN' }));
+        socket.send(JSON.stringify({ type: 'status' }));
+      } catch {}
+    });
+
+    socket.on('message', data => {
+      let msg: any = null;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+      if (!msg || !['provider', 'status', 'hello'].includes(String(msg.type || ''))) return;
+      const transportMode = String(msg.mode || (msg.upstreamConnected ? 'xiaozhi-websocket-relay' : 'browser-fallback-transport'));
+      done({
+        ...base,
+        pass: true,
+        gatewayReachable: true,
+        upstreamConnected: Boolean(msg.upstreamConnected),
+        fallbackReady: !msg.upstreamConnected,
+        mode: transportMode,
+        sessionIdReceived: Boolean(msg.sessionId || msg.session_id)
+      });
+    });
+
+    socket.once('unexpected-response', (_req, response) => done({
+      ...base,
+      pass: false,
+      gatewayReachable: false,
+      upstreamConnected: false,
+      mode: 'render-direct-wss',
+      status: response.statusCode,
+      reason: 'XIAOZHI_HANDSHAKE_REJECTED'
+    }));
+    socket.once('error', () => done({
+      ...base,
+      pass: false,
+      gatewayReachable: false,
+      upstreamConnected: false,
+      mode: 'render-direct-wss',
+      reason: 'XIAOZHI_CONNECTION_FAILED'
+    }));
   });
 }
 
@@ -115,7 +170,8 @@ export default async function handler(req: any, res: any) {
       protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1',
       stableIdentityConfigured: Boolean(process.env.XIAOZHI_CLIENT_ID && process.env.XIAOZHI_DEVICE_ID),
       browserFallback: true,
-      voiceRenderVersion: '2.3',
+      voiceRenderVersion: '2.5',
+      readinessSemantics: 'gateway-reachable-is-not-upstream-connected',
       missing: []
     }
   };
