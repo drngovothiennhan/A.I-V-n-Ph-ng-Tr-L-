@@ -22,6 +22,7 @@ async function bootKnowledgeRouter() {
     const weather = await import('./weather-bridge-v21.js?v=211');
     await import('./interaction-runtime-v22.js?v=220');
     await import('./interaction-control-v21.js?v=211');
+    await import('./credential-setup-v22.js?v=221');
     weather.patchVoice?.();
     window.AIOfficeV22?.attachAfterV21?.();
   } catch (error) {
