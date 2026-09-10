@@ -1,11 +1,15 @@
 const MAX_QUERY = 1600;
 const MAX_CONTEXT = 24000;
-const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_PRIMARY_MODEL = 'gemini-3.8-flash';
+const DEFAULT_ECONOMY_MODEL = 'gemini-3.5-flash-lite';
 const OFFICIAL_DOMAINS = ['vbpl.vn','vanban.chinhphu.vn','chinhphu.vn','moh.gov.vn'];
 const MEDICAL_DOMAINS = ['pubmed.ncbi.nlm.nih.gov','who.int','moh.gov.vn'];
 
-function geminiModel() {
-  return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+function primaryModel() {
+  return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_PRIMARY_MODEL;
+}
+function economyModel() {
+  return process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL || DEFAULT_ECONOMY_MODEL;
 }
 function clean(input, max = 8000) {
   return String(input ?? '').replace(/\0/g,'').replace(/\s+/g,' ').trim().slice(0,max);
@@ -36,9 +40,25 @@ function dedupe(sources=[]) {
     seen.add(key); return true;
   });
 }
+function complexRequest(query, mode, officialOnly, driveContext=[]) {
+  if (officialOnly || medicalMode(mode, query) || driveContext.length) return true;
+  if (/admin|internal|legal|document/.test(mode)) return true;
+  if (query.length > 520) return true;
+  return /\b(phân tích|đánh giá|so sánh|tổng hợp|đề xuất|chiến lược|kiến trúc|lập luận|nguyên nhân|đa nguồn|quy định|pháp lý|an toàn|rủi ro|debug|thiết kế hệ thống)\b/i.test(query);
+}
+function modelForRequest(query, mode, officialOnly, driveContext=[]) {
+  const primary = complexRequest(query, mode, officialOnly, driveContext);
+  return { model: primary ? primaryModel() : economyModel(), costTier: primary ? 'reasoning' : 'economy' };
+}
+function publicFirstEligible(query, mode, officialOnly, driveContext=[]) {
+  if (officialOnly || driveContext.length || medicalMode(mode, query)) return false;
+  if (query.length > 180) return false;
+  if (/\b(hôm nay|hiện nay|mới nhất|vừa|giá|tỷ giá|thời tiết|lịch|2026|current|latest|today|now)\b/i.test(query)) return false;
+  return /^(ai|gì|nào|thế nào|giải thích|cho tôi biết|what|who|define|explain)\b/i.test(query.trim()) || /\b(là gì|nghĩa là gì)\b/i.test(query);
+}
 
 async function fetchJson(url, timeout=9000) {
-  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.0'}, signal:AbortSignal.timeout(timeout) });
+  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.4'}, signal:AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(`UPSTREAM_${response.status}`);
   return response.json();
 }
@@ -95,22 +115,34 @@ function extractive(query, sources) {
   return picked.length ? picked.join(' ') : '';
 }
 
+async function publicExtractive(query, mode, officialOnly) {
+  const jobs=[wiki(query,'vi'),duck(query),wiki(query,'en')];
+  if (medicalMode(mode,query)) jobs.unshift(pubmed(query));
+  let sources=dedupe((await Promise.all(jobs)).flat());
+  if (officialOnly) {
+    const official=sources.filter(s=>OFFICIAL_DOMAINS.some(d=>s.domain===d||s.domain.endsWith(`.${d}`)));
+    if (official.length) sources=official;
+  }
+  return { sources, answer:extractive(query,sources) };
+}
+
 async function geminiGrounded(query, mode, officialOnly, driveContext=[]) {
   const key = process.env.GEMINI_API_KEY || '';
   if (!key) return null;
-  const model = geminiModel();
-  const domainHint = officialOnly ? `Ưu tiên nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.` : medicalMode(mode,query) ? `Ưu tiên PubMed, WHO và Bộ Y tế.` : '';
-  const context = (Array.isArray(driveContext) ? driveContext : []).map((s,i)=>`[DRIVE-${i+1}] ${clean(s?.title,180)}\n${clean(s?.text,4500)}`).join('\n\n').slice(0,MAX_CONTEXT);
-  const prompt = `Bạn là Trưởng phòng A.I. Trả lời câu hỏi bằng tiếng Việt, chính xác, ngắn gọn nhưng đủ ý. Dùng Google Search khi cần dữ kiện hiện hành. ${domainHint}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Drive context chỉ là ngữ cảnh nội bộ; với dữ kiện hiện hành phải kiểm chứng nguồn web khi phù hợp.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nDRIVE CONTEXT:\n${context}`;
-  const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
-  const response = await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.12,maxOutputTokens:4096}}),signal:AbortSignal.timeout(30000)});
+  const route = modelForRequest(query, mode, officialOnly, driveContext);
+  const domainHint = officialOnly ? `Ưu tiên nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.` : medicalMode(mode,query) ? 'Ưu tiên PubMed, WHO và Bộ Y tế.' : '';
+  const maxContext = route.costTier === 'economy' ? 12000 : MAX_CONTEXT;
+  const context = (Array.isArray(driveContext) ? driveContext : []).map((s,i)=>`[DRIVE-${i+1}] ${clean(s?.title,180)}\n${clean(s?.text,4500)}`).join('\n\n').slice(0,maxContext);
+  const prompt = `Bạn là Trưởng phòng A.I. Trả lời câu hỏi bằng tiếng Việt, chính xác, bám sát ngữ cảnh và đủ ý. Dùng Google Search khi cần dữ kiện hiện hành. ${domainHint}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Drive context chỉ là ngữ cảnh nội bộ; với dữ kiện hiện hành phải kiểm chứng nguồn web khi phù hợp.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nDRIVE CONTEXT:\n${context}`;
+  const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(route.model)}:generateContent`);
+  const response = await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{maxOutputTokens:route.costTier==='economy'?1600:3000}}),signal:AbortSignal.timeout(route.costTier==='economy'?18000:30000)});
   if (!response.ok) return null;
   const data = await response.json();
   const candidate=data?.candidates?.[0] || {};
   const answer=stripMarkup(candidate?.content?.parts?.map(p=>p?.text || '').join('') || '');
   const chunks=candidate?.groundingMetadata?.groundingChunks || [];
   const sources=chunks.map((c,i)=>({kind:'grounded-web',source:'Google Search',title:clean(c?.web?.title || `Nguồn ${i+1}`,240),url:clean(c?.web?.uri || '',2048),domain:sourceDomain(c?.web?.uri || ''),text:''})).filter(s=>s.url);
-  return answer ? {provider:'gemini-google-search',model,answer,sources} : null;
+  return answer ? {provider:'gemini-google-search',model:route.model,costTier:route.costTier,answer,sources} : null;
 }
 
 export default async function handler(req,res) {
@@ -121,20 +153,20 @@ export default async function handler(req,res) {
   const officialOnly=Boolean(req.body?.officialOnly);
   const driveContext=Array.isArray(req.body?.driveContext) ? req.body.driveContext.slice(0,6) : [];
   try {
+    if (publicFirstEligible(query,mode,officialOnly,driveContext)) {
+      const fast=await publicExtractive(query,mode,officialOnly);
+      if (fast.answer && fast.sources.length) {
+        return json(res,200,{configured:true,provider:'public-extractive',costTier:'zero-model',geminiConfigured:Boolean(process.env.GEMINI_API_KEY),primaryModel:primaryModel(),economyModel:economyModel(),answer:fast.answer,sources:fast.sources.slice(0,8),limitations:[]});
+      }
+    }
+
     const grounded=await geminiGrounded(query,mode,officialOnly,driveContext);
     if (grounded) return json(res,200,{configured:true,...grounded});
 
-    const jobs=[wiki(query,'vi'),duck(query),wiki(query,'en')];
-    if (medicalMode(mode,query)) jobs.unshift(pubmed(query));
-    let sources=dedupe((await Promise.all(jobs)).flat());
-    if (officialOnly) {
-      const official=sources.filter(s=>OFFICIAL_DOMAINS.some(d=>s.domain===d||s.domain.endsWith(`.${d}`)));
-      if (official.length) sources=official;
-    }
-    const answer=extractive(query,sources);
-    return json(res,200,{configured:true,provider:'public-extractive',geminiConfigured:Boolean(process.env.GEMINI_API_KEY),geminiModel:geminiModel(),answer:answer || '',sources:sources.slice(0,8),limitations: answer ? [] : ['Không có nguồn public đủ liên quan từ fallback hiện tại; không tạo câu trả lời giả.']});
+    const fallback=await publicExtractive(query,mode,officialOnly);
+    return json(res,200,{configured:true,provider:'public-extractive',costTier:'zero-model',geminiConfigured:Boolean(process.env.GEMINI_API_KEY),primaryModel:primaryModel(),economyModel:economyModel(),answer:fallback.answer || '',sources:fallback.sources.slice(0,8),limitations: fallback.answer ? [] : ['Không có nguồn public đủ liên quan từ fallback hiện tại; không tạo câu trả lời giả.']});
   } catch(error) {
-    console.error('research_v20_error',{message:String(error?.message || error).slice(0,220)});
+    console.error('research_v24_error',{message:String(error?.message || error).slice(0,220)});
     return json(res,502,{error:'RESEARCH_FAILED'});
   }
 }
