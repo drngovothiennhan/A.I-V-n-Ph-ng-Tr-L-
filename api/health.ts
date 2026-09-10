@@ -8,15 +8,39 @@ export default async function handler(req: any, res: any) {
 
   const providers = {
     local: { configured: true, mode: 'fallback' },
-    gemini: { configured: Boolean(process.env.GEMINI_API_KEY), mode: 'primary' },
-    xiaozhi: { configured: Boolean(process.env.XIAOZHI_WS_URL), mode: 'optional' },
+    gemini: {
+      configured: Boolean(process.env.GEMINI_API_KEY),
+      mode: 'primary',
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    },
+    xiaozhi: {
+      configured: Boolean(process.env.XIAOZHI_WS_URL),
+      authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN),
+      mode: 'optional',
+      protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1'
+    },
     googleWorkspace: { configured: process.env.GOOGLE_WORKSPACE_ENABLED === 'true', mode: 'optional' }
+  };
+
+  const setup = {
+    gemini: {
+      ready: providers.gemini.configured,
+      requiredSecrets: ['GEMINI_API_KEY'],
+      configuredDefaults: { GEMINI_MODEL: providers.gemini.model }
+    },
+    xiaozhi: {
+      ready: providers.xiaozhi.configured,
+      requiredRuntime: ['XIAOZHI_WS_URL'],
+      recommendedSecrets: ['XIAOZHI_WS_TOKEN'],
+      optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID'],
+      configuredDefaults: { XIAOZHI_PROTOCOL_VERSION: providers.xiaozhi.protocolVersion }
+    }
   };
 
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     status: 'ok',
-    release: '1.8.0-continuous-second-brain',
+    release: '1.8.1-provider-setup',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -43,6 +67,7 @@ export default async function handler(req: any, res: any) {
     defaultOutput: 'conversation',
     explicitArtifacts: ['docx', 'xlsx', 'pptx', 'pdf', 'png'],
     providers,
+    setup,
     timestamp: new Date().toISOString()
   });
 }
