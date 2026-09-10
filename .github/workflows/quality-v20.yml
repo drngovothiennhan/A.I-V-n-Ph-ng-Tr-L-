@@ -16,15 +16,21 @@ jobs:
       - run: npm install --ignore-scripts
       - name: Syntax checks
         run: |
+          node --check src/bootstrap-v17.js
           node --check src/source-policy-v20.js
           node --check src/knowledge-router-v20.js
           node --check src/interaction-policy-v21.js
+          node --check src/interaction-policy-v22.js
+          node --check src/interaction-runtime-v22.js
           node --check src/weather-bridge-v21.js
           node --check src/interaction-control-v21.js
+          node --check src/voice/xiaozhi-voice-fabric.js
           node --check src/release-v193.js
           cp api/research.ts /tmp/research-v20.mjs
           node --check /tmp/research-v20.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
-      - name: Interaction regression suite
+      - name: Interaction v2.1 regression suite
         run: node tests/interaction-policy-v21.test.mjs
+      - name: Interaction v2.2 regression suite
+        run: node tests/interaction-policy-v22.test.mjs
