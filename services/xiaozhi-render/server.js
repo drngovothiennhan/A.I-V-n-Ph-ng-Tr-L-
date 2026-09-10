@@ -5,7 +5,11 @@ import { WebSocketServer, WebSocket } from 'ws';
 const PORT = Number(process.env.PORT || 10000);
 const TOKEN = String(process.env.XIAOZHI_WS_TOKEN || process.env.BRIDGE_TOKEN || '');
 const PROTOCOL_VERSION = String(process.env.XIAOZHI_PROTOCOL_VERSION || '1');
-const RELEASE = 'xiaozhi-render-gateway-1.0.0';
+const RELEASE = 'xiaozhi-render-gateway-1.1.0';
+const TRUSTED_ORIGINS = new Set([
+  'https://ai-van-phong-tro-ly.vercel.app',
+  'https://ai-van-phong-tro-ly-hiu-yhct.vercel.app'
+]);
 
 function json(res, status, body) {
   const text = JSON.stringify(body);
@@ -18,15 +22,20 @@ function json(res, status, body) {
   res.end(text);
 }
 
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
+}
+
 function authorized(req) {
+  const origin = String(req.headers.origin || '').replace(/\/$/, '');
+  if (TRUSTED_ORIGINS.has(origin)) return true;
   if (!TOKEN) return false;
   const header = String(req.headers.authorization || '');
-  if (header.startsWith('Bearer ')) return crypto.timingSafeEqual(Buffer.from(header.slice(7)), Buffer.from(TOKEN));
+  if (header.startsWith('Bearer ') && safeEqual(header.slice(7), TOKEN)) return true;
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const queryToken = url.searchParams.get('token') || '';
-  if (!queryToken) return false;
-  const a = Buffer.from(queryToken), b = Buffer.from(TOKEN);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return safeEqual(url.searchParams.get('token') || '', TOKEN);
 }
 
 const server = http.createServer((req, res) => {
@@ -39,6 +48,9 @@ const server = http.createServer((req, res) => {
       websocketPath: '/xiaozhi/v1/',
       protocolVersion: PROTOCOL_VERSION,
       authConfigured: Boolean(TOKEN),
+      trustedOriginMode: true,
+      trustedOrigins: [...TRUSTED_ORIGINS],
+      activeClients: clients.size,
       timestamp: new Date().toISOString()
     });
   }
@@ -66,6 +78,8 @@ server.on('upgrade', (req, socket, head) => {
 wss.on('connection', (ws, req) => {
   clients.add(ws);
   const sessionId = crypto.randomUUID();
+  const origin = String(req.headers.origin || '');
+  console.log(JSON.stringify({ event: 'ws_connected', sessionId, origin: origin || 'server-client', clients: clients.size }));
   ws.send(JSON.stringify({ type: 'provider', provider: 'xiaozhi-render', connected: true, sessionId, protocolVersion: PROTOCOL_VERSION }));
 
   ws.on('message', (data, isBinary) => {
@@ -82,7 +96,10 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'message', echo: msg, sessionId }));
   });
 
-  ws.on('close', () => clients.delete(ws));
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log(JSON.stringify({ event: 'ws_closed', sessionId, clients: clients.size }));
+  });
   ws.on('error', () => clients.delete(ws));
 });
 
@@ -93,7 +110,7 @@ const heartbeat = setInterval(() => {
 heartbeat.unref?.();
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(JSON.stringify({ event: 'started', release: RELEASE, port: PORT, authConfigured: Boolean(TOKEN), protocolVersion: PROTOCOL_VERSION }));
+  console.log(JSON.stringify({ event: 'started', release: RELEASE, port: PORT, authConfigured: Boolean(TOKEN), trustedOriginMode: true, protocolVersion: PROTOCOL_VERSION }));
 });
 
 function shutdown(signal) {
