@@ -60,6 +60,10 @@ jobs:
         run: node tests/drive-registry-v24.test.mjs
       - name: Drive Brain bridge contract regression
         run: node tests/drive-bridge-contract-v24.test.mjs
+      - name: XiaoZhi client continuity contract
+        run: node tests/xiaozhi-client-contract-v24.test.mjs
+      - name: XiaoZhi gateway live fallback regression
+        run: node tests/xiaozhi-gateway-v24.test.mjs
       - name: Office artifact round-trip regression
         run: node tests/artifact-engine-v24.test.mjs
       - name: Dependency security gate
