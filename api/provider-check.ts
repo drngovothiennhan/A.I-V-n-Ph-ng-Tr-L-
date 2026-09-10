@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 
+const RELEASE = '1.9.3-autonomous-office-orchestrator';
+
 function json(res: any, status: number, body: any) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
@@ -52,7 +54,7 @@ async function probeXiaozhi() {
     'Protocol-Version': protocolVersion,
     'Client-Id': clientId,
     'Device-Id': deviceId,
-    'User-Agent': 'AI-Office-XiaoZhi-Probe/1.8.1'
+    'User-Agent': 'AI-Office-XiaoZhi-Probe/1.9.3'
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -78,7 +80,7 @@ export default async function handler(req: any, res: any) {
 
   const probe = String(req.query?.probe || 'config').toLowerCase();
   const config = {
-    release: '1.8.1-provider-setup',
+    release: RELEASE,
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
       model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
