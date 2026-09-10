@@ -4,7 +4,7 @@ const INTERACTION_CONTROL = '2.2';
 const WEATHER_BRIDGE = '2.1';
 const VOICE_RENDER_BRIDGE = '2.3';
 const VOICE_TURN_COORDINATOR = '2.5';
-const MULTISOURCE_ORCHESTRATOR = '2.6.1';
+const MULTISOURCE_ORCHESTRATOR = '2.6.2';
 const PRODUCT_COMPLETION = '2.4';
 
 function syncReleaseLabels() {
@@ -23,7 +23,7 @@ function syncReleaseLabels() {
 async function bootKnowledgeRouter() {
   try {
     await import('./knowledge-router-v20.js?v=200');
-    const multiSource = await import('./multisource-orchestrator-v26.js?v=261');
+    const multiSource = await import('./multisource-orchestrator-v26.js?v=262');
     multiSource.installMultiSourceOrchestrator?.();
     const weather = await import('./weather-bridge-v21.js?v=211');
     await import('./interaction-runtime-v22.js?v=220');
