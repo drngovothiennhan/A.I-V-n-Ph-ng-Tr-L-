@@ -1,7 +1,7 @@
 {
-  "name": "ai-office-v18-continuous-second-brain",
+  "name": "ai-office-v19-autonomous-office-orchestrator",
   "private": true,
-  "version": "1.8.1",
+  "version": "1.9.0",
   "type": "module",
   "dependencies": {
     "docx": "^9.5.1",
