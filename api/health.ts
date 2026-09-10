@@ -7,7 +7,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const providers = {
-    local: { configured: true, mode: 'fallback' },
+    local: { configured: true, mode: 'safe-fallback' },
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
       mode: 'primary',
@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
     xiaozhi: {
       configured: Boolean(process.env.XIAOZHI_WS_URL),
       authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN),
-      mode: 'optional',
+      mode: 'optional-voice',
       protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1'
     },
     googleWorkspace: { configured: process.env.GOOGLE_WORKSPACE_ENABLED === 'true', mode: 'optional' }
@@ -40,7 +40,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     status: 'ok',
-    release: '1.8.1-provider-setup',
+    release: '1.9.0-autonomous-office-orchestrator',
     dashboard: 'v1.5-approved-design',
     pwa: {
       standalone: true,
@@ -53,9 +53,18 @@ export default async function handler(req: any, res: any) {
       localRag: true,
       driveCanonical: true,
       externalResearch: ['Wikipedia vi', 'Wikipedia en', 'DuckDuckGo Instant Answer', 'PubMed when medical'],
-      intentRouter: ['question', 'task'],
+      intentRouter: ['question', 'admin', 'data', 'research', 'presentation', 'image', 'tech', 'general', 'continuation'],
+      decisionPolicy: ['execute-safe-internal', 'prepare-and-hold-irreversible'],
+      workflow: ['understand', 'context', 'execute', 'qa', 'artifact-if-requested', 'approval'],
+      proceduralMemory: 'approved-only',
       conversationMemory: true,
       fineTuning: false
+    },
+    quality: {
+      qaGate: true,
+      noSimulatedProgress: true,
+      noFabricatedMetadata: true,
+      auditDecisionLog: true
     },
     voice: {
       xiaozhiFabric: true,
