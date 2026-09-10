@@ -10,6 +10,8 @@ import {
 assert.equal(isWeatherQuery('hôm nay có mưa không'), true);
 assert.equal(isWeatherQuery('ngày mai ở Thủ Đức có mưa không?'), true);
 assert.equal(isWeatherQuery('giải thích khái niệm lượng mưa'), false);
+assert.equal(isWeatherQuery('báo cáo hôm nay'), false);
+assert.equal(isWeatherQuery('bão số 3 hôm nay thế nào?'), true);
 assert.equal(explicitPlaceFromWeather('Hôm nay ở Thủ Đức có mưa không?'), 'Thủ Đức');
 assert.equal(cancellationIntent('hủy lệnh'), 'command');
 assert.equal(cancellationIntent('hủy công việc đang làm'), 'task');
