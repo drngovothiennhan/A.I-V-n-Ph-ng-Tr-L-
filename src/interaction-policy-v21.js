@@ -22,9 +22,12 @@ export function isWeatherQuery(text='') {
 
 export function explicitPlaceFromWeather(text='') {
   const raw = String(text || '').trim();
-  const m = raw.match(/(?:\bở\b|\btại\b|\bkhu vực\b)\s+([^?.,;]+)(?:[?.,;]|$)/i);
+  const m = raw.match(/(?:^|\s)(?:ở|tại|khu vực)\s+([^?.,;]+)(?:[?.,;]|$)/i);
   if (!m) return '';
-  return m[1].replace(/\b(hôm nay|ngày mai|bây giờ|chiều nay|tối nay|sáng nay|có mưa không|mưa không|thời tiết)\b/gi,' ').replace(/\s+/g,' ').trim();
+  return m[1]
+    .replace(/(?:^|\s)(?:hôm nay|ngày mai|bây giờ|chiều nay|tối nay|sáng nay|có mưa không|mưa không|thời tiết)(?=\s|$)/gi,' ')
+    .replace(/\s+/g,' ')
+    .trim();
 }
 
 export function cancellationIntent(text='') {
