@@ -1,6 +1,7 @@
 const RELEASE = '1.9.3';
 const KNOWLEDGE_ROUTER = '2.0';
 const INTERACTION_CONTROL = '2.1';
+const WEATHER_BRIDGE = '2.1';
 
 function syncReleaseLabels() {
   document.title = `A.I Văn phòng v${RELEASE}`;
@@ -22,7 +23,9 @@ function syncReleaseLabels() {
 async function bootKnowledgeRouter() {
   try {
     await import('./knowledge-router-v20.js?v=200');
+    const weather = await import('./weather-bridge-v21.js?v=211');
     await import('./interaction-control-v21.js?v=210');
+    weather.patchVoice?.();
   } catch (error) {
     console.error('ai_office_extended_boot_failed', { message:String(error?.message || error).slice(0,240) });
     const status = document.querySelector('#v19Status');
@@ -38,3 +41,4 @@ setTimeout(bootKnowledgeRouter, 0);
 window.AIOfficeRelease = RELEASE;
 window.AIOfficeKnowledgeRouterVersion = KNOWLEDGE_ROUTER;
 window.AIOfficeInteractionVersion = INTERACTION_CONTROL;
+window.AIOfficeWeatherBridgeVersion = WEATHER_BRIDGE;
