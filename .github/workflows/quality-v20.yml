@@ -1,0 +1,25 @@
+name: Source Router v2 QA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  source-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check src/source-policy-v20.js
+          node --check src/knowledge-router-v20.js
+          cp api/research.ts /tmp/research-v20.mjs
+          node --check /tmp/research-v20.mjs
+      - name: Source policy regression suite
+        run: node tests/source-policy-v20.test.mjs
