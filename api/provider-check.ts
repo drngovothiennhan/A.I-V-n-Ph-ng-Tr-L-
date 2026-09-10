@@ -3,9 +3,14 @@ import { WebSocket } from 'ws';
 
 const RELEASE = '1.9.3-autonomous-office-orchestrator';
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_XIAOZHI_WS = 'wss://ai-office-xiaozhi-gateway.onrender.com/xiaozhi/v1/';
+const PRODUCTION_ORIGIN = 'https://ai-van-phong-tro-ly.vercel.app';
 
 function geminiModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
+function xiaozhiUrl() {
+  return process.env.XIAOZHI_WS_URL || DEFAULT_XIAOZHI_WS;
 }
 function json(res: any, status: number, body: any) {
   res.setHeader('cache-control', 'no-store');
@@ -37,10 +42,9 @@ async function probeGemini() {
 }
 
 async function probeXiaozhi() {
-  const raw = process.env.XIAOZHI_WS_URL || '';
+  const raw = xiaozhiUrl();
   const token = process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN || '';
   const protocolVersion = process.env.XIAOZHI_PROTOCOL_VERSION || '1';
-  if (!raw) return { pass: false, configured: false, reason: 'XIAOZHI_WS_URL_MISSING', protocolVersion };
 
   let target: URL;
   try {
@@ -48,16 +52,18 @@ async function probeXiaozhi() {
     if (!['ws:', 'wss:'].includes(target.protocol)) throw new Error('protocol');
     if (!target.pathname || target.pathname === '/') target.pathname = '/xiaozhi/v1/';
   } catch {
-    return { pass: false, configured: true, reason: 'XIAOZHI_WS_URL_INVALID', protocolVersion };
+    return { pass: false, configured: true, reason: 'XIAOZHI_WS_URL_INVALID', protocolVersion, mode: 'render-direct-wss' };
   }
 
   const clientId = process.env.XIAOZHI_CLIENT_ID || `ai-office-probe-${randomUUID()}`;
   const deviceId = process.env.XIAOZHI_DEVICE_ID || `web-probe-${randomUUID()}`;
+  const usingRenderDefault = target.hostname === 'ai-office-xiaozhi-gateway.onrender.com';
   const headers: Record<string, string> = {
     'Protocol-Version': protocolVersion,
     'Client-Id': clientId,
     'Device-Id': deviceId,
-    'User-Agent': 'AI-Office-XiaoZhi-Probe/1.9.3'
+    'User-Agent': 'AI-Office-XiaoZhi-Probe/2.3',
+    Origin: usingRenderDefault ? PRODUCTION_ORIGIN : PRODUCTION_ORIGIN
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -71,10 +77,10 @@ async function probeXiaozhi() {
       resolve(value);
     };
     const socket = new WebSocket(target.toString(), { headers, handshakeTimeout: 6000, perMessageDeflate: false });
-    const timer = setTimeout(() => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, reason: 'XIAOZHI_CONNECT_TIMEOUT' }), 7000);
-    socket.once('open', () => done({ pass: true, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion }));
-    socket.once('unexpected-response', (_req, response) => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, status: response.statusCode, reason: 'XIAOZHI_HANDSHAKE_REJECTED' }));
-    socket.once('error', () => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, reason: 'XIAOZHI_CONNECTION_FAILED' }));
+    const timer = setTimeout(() => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, reason: 'XIAOZHI_CONNECT_TIMEOUT' }), 7000);
+    socket.once('open', () => done({ pass: true, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, trustedOrigin: PRODUCTION_ORIGIN }));
+    socket.once('unexpected-response', (_req, response) => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, status: response.statusCode, reason: 'XIAOZHI_HANDSHAKE_REJECTED' }));
+    socket.once('error', () => done({ pass: false, configured: true, secure: target.protocol === 'wss:', tokenConfigured: Boolean(token), protocolVersion, mode: 'render-direct-wss', endpoint: target.origin, reason: 'XIAOZHI_CONNECTION_FAILED' }));
   });
 }
 
@@ -82,6 +88,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') return json(res, 405, { error: 'METHOD_NOT_ALLOWED' });
 
   const probe = String(req.query?.probe || 'config').toLowerCase();
+  const source = process.env.XIAOZHI_WS_URL ? 'vercel-env' : 'render-direct-default';
   const config = {
     release: RELEASE,
     gemini: {
@@ -90,11 +97,16 @@ export default async function handler(req: any, res: any) {
       missing: process.env.GEMINI_API_KEY ? [] : ['GEMINI_API_KEY']
     },
     xiaozhi: {
-      configured: Boolean(process.env.XIAOZHI_WS_URL),
+      configured: true,
+      source,
+      mode: 'render-direct-wss',
+      endpoint: xiaozhiUrl().replace(/\/xiaozhi\/v1\/?$/, ''),
       tokenConfigured: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN),
       protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1',
       stableIdentityConfigured: Boolean(process.env.XIAOZHI_CLIENT_ID && process.env.XIAOZHI_DEVICE_ID),
-      missing: process.env.XIAOZHI_WS_URL ? [] : ['XIAOZHI_WS_URL']
+      browserFallback: true,
+      voiceRenderVersion: '2.3',
+      missing: []
     }
   };
 
