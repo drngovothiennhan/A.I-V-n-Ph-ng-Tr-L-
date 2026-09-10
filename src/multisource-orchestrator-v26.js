@@ -1,7 +1,9 @@
-const VERSION='2.6-multisource-orchestrator';
+const VERSION='2.6.1-multisource-orchestrator';
 const CANARY_QUERY='DBR-CANARY-2026-09-10';
 const CANARY_FILE_ID='1AfqRLNHMM87hyDXEy5J15KXcnvNsfiXsrfLgTh_H2Zg';
+const LOCAL_DOC_KEY='ai-office-drive-docs-v16';
 const DRIVE_HEALTH_INTERVAL_MS=60000;
+const MAX_SOURCE_TEXT=12000;
 const EXPLICIT_LOCAL_HINTS=[
   'file local','tep local','tai lieu local','file vua tai','tep vua tai','tai lieu vua tai',
   'file tai len','tep tai len','tai lieu tai len','upload local','file upload'
@@ -16,6 +18,23 @@ let healthTimer=null;
 function normalize(text=''){
   return String(text||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
 }
+function stripMarkup(input=''){
+  return String(input||'')
+    .replace(/<script[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style[\s\S]*?<\/style>/gi,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/gi,' ')
+    .replace(/&amp;/gi,'&')
+    .replace(/&lt;/gi,'<')
+    .replace(/&gt;/gi,'>')
+    .replace(/&quot;/gi,'"')
+    .replace(/&#39;/gi,"'")
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function semanticWords(text=''){
+  return normalize(text).split(/[^a-z0-9]+/).filter(word=>word.length>2);
+}
 function explicitLocalRequested(text=''){
   const n=normalize(text);
   return EXPLICIT_LOCAL_HINTS.some(x=>n.includes(x));
@@ -28,7 +47,7 @@ function isDriveSource(source={}){
 }
 function isExternalSource(source={}){
   if(isDriveSource(source)||isLocalSource(source))return false;
-  return Boolean(source?.url || /web|official|scholarly|pubmed|wikipedia|duck/i.test(String(source.kind||source.source||'')));
+  return Boolean(source?.url || /web|official|scholarly|pubmed|wikipedia|duck|research/i.test(String(source.kind||source.source||'')));
 }
 function uniqSources(sources=[]){
   const seen=new Set();
@@ -39,36 +58,109 @@ function uniqSources(sources=[]){
     return true;
   });
 }
+function readLocalDocs(){
+  try{return JSON.parse(localStorage.getItem(LOCAL_DOC_KEY)||'[]')||[]}catch{return[]}
+}
+
+function explicitLocalSources(query){
+  if(!explicitLocalRequested(query))return[];
+  const terms=semanticWords(query);
+  return readLocalDocs()
+    .filter(doc=>doc?.status==='approved'&&!doc?.blocked&&doc?.text)
+    .map(doc=>{
+      const text=stripMarkup(doc.text).slice(0,MAX_SOURCE_TEXT);
+      const hay=normalize(`${doc.name||''} ${text}`);
+      const score=terms.reduce((n,term)=>n+(hay.includes(term)?1:0),0);
+      return{
+        kind:'local-approved-explicit',
+        source:`Local approved (explicit) · ${doc.name||'Tài liệu'}`,
+        title:doc.name||'Tài liệu local đã duyệt',
+        url:'',
+        domain:'',
+        text,
+        approvalState:'approved',
+        sourceOrigin:'local',
+        _localScore:score
+      };
+    })
+    .filter(source=>source._localScore>0)
+    .sort((a,b)=>b._localScore-a._localScore)
+    .slice(0,4);
+}
 
 function effectivePolicy(query, policy={}){
   const mode=String(policy?.mode||'');
   const local=explicitLocalRequested(query);
   const questionLike=Boolean(policy?.question || QUESTION_DRIVE_MODES.has(mode));
   const canUseDrive=questionLike && mode!=='direct_runtime' && mode!=='data_task';
-  return {
+  return{
     ...policy,
-    useDrive: Boolean(policy?.useDrive || canUseDrive),
-    useLocal: local,
-    localRole: local?'explicit-supplement':'disabled-by-default',
-    driveRole: canUseDrive?'opportunistic-canonical':'policy-default',
+    useDrive:Boolean(policy?.useDrive||canUseDrive),
+    useLocal:local,
+    localRole:local?'explicit-supplement':'disabled-by-default',
+    driveRole:canUseDrive?'opportunistic-canonical':'policy-default',
     multiSourceV26:true
+  };
+}
+
+function driveScopes(policy={}){
+  if(policy?.mode==='admin_document')return['03_TEMPLATES','02_APPROVED','01_KNOWLEDGE','04_SKILLS'];
+  return['02_APPROVED','01_KNOWLEDGE','04_SKILLS'];
+}
+
+async function driveRuntimeSources(query,policy={}){
+  if(!policy?.useDrive)return[];
+  try{
+    const response=await fetch('/api/drive-brain',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      cache:'no-store',
+      body:JSON.stringify({action:'search',query,scopes:driveScopes(policy),limit:7})
+    });
+    if(!response.ok)return[];
+    const data=await response.json();
+    if(!data?.configured||!Array.isArray(data?.sources))return[];
+    return data.sources.map(source=>({
+      kind:source?.kind||'drive-document',
+      source:source?.source||`Drive · ${source?.title||'Tài liệu'}`,
+      title:source?.title||'Drive',
+      url:source?.url||'',
+      domain:source?.domain||'drive.google.com',
+      text:stripMarkup(source?.text||source?.snippet||'').slice(0,MAX_SOURCE_TEXT),
+      approvalState:source?.approvalState||'reference',
+      provenance:source?.provenance||null,
+      sourceOrigin:'drive'
+    })).filter(source=>source.text||source.title);
+  }catch{return[]}
+}
+
+function derivedExternalSource(answer='',externalResult={}){
+  const text=stripMarkup(answer).slice(0,MAX_SOURCE_TEXT);
+  if(!text)return null;
+  return{
+    kind:'derived-research',
+    source:'External research synthesis · derived, not ground truth',
+    title:'Gemini/Web research synthesis',
+    url:'',
+    domain:'',
+    text,
+    approvalState:'derived',
+    sourceOrigin:'external-derived',
+    provenance:{provider:externalResult?.provider||'research',role:'derived-context'}
   };
 }
 
 function annotateSources(sources=[]){
   return uniqSources(sources).map(source=>({
     ...source,
-    sourceOrigin: isLocalSource(source)?'local':isDriveSource(source)?'drive':'external'
+    sourceOrigin:source?.sourceOrigin || (isLocalSource(source)?'local':isDriveSource(source)?'drive':'external')
   }));
 }
 
 async function probeDrive(){
   try{
     const response=await fetch('/api/drive-brain',{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      cache:'no-store',
-      body:JSON.stringify({action:'health'})
+      method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({action:'health'})
     });
     if(!response.ok)return{configured:false,live:false,status:response.status};
     const data=await response.json();
@@ -79,25 +171,16 @@ async function probeDrive(){
 async function verifyCanary(){
   try{
     const response=await fetch('/api/drive-brain',{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      cache:'no-store',
-      body:JSON.stringify({
-        action:'search',
-        query:CANARY_QUERY,
-        scopes:['02_APPROVED'],
-        limit:5
-      })
+      method:'POST',headers:{'content-type':'application/json'},cache:'no-store',
+      body:JSON.stringify({action:'search',query:CANARY_QUERY,scopes:['02_APPROVED'],limit:5})
     });
     if(!response.ok)return{pass:false,configured:false,status:response.status};
     const data=await response.json();
     if(!data?.configured)return{pass:false,configured:false,reason:data?.reason||'DRIVE_RUNTIME_NOT_CONFIGURED'};
     const sources=Array.isArray(data?.sources)?data.sources:[];
-    const match=sources.find(s=>s?.provenance?.fileId===CANARY_FILE_ID || String(s?.text||'').includes(CANARY_QUERY));
+    const match=sources.find(source=>source?.provenance?.fileId===CANARY_FILE_ID || String(source?.text||'').includes(CANARY_QUERY));
     return{
-      pass:Boolean(match),
-      configured:true,
-      sourceCount:sources.length,
+      pass:Boolean(match),configured:true,sourceCount:sources.length,
       fileId:match?.provenance?.fileId||null,
       scope:match?.provenance?.scope||match?.scope||null,
       approvalState:match?.approvalState||null
@@ -105,7 +188,7 @@ async function verifyCanary(){
   }catch{return{pass:false,configured:false,reason:'DRIVE_CANARY_PROBE_FAILED'}}
 }
 
-function updateUi(driveState, canaryState=null){
+function updateUi(driveState,canaryState=null){
   const router=window.AIOfficeV20;
   if(router)router.driveState=driveState;
   const pills=[...document.querySelectorAll('.pills .pill')];
@@ -115,7 +198,7 @@ function updateUi(driveState, canaryState=null){
     else pills[2].textContent='☁ Drive canonical · cần cấp Bridge runtime';
   }
   const status=document.getElementById('v19Status');
-  if(status&&canaryState?.pass)status.textContent='Multi-source v2.6 · Drive Approved verified · Gemini + external ready';
+  if(status&&canaryState?.pass)status.textContent='Multi-source v2.6.1 · Drive Approved verified · Gemini + external ready';
 }
 
 async function refreshDriveRuntime({verify=true}={}){
@@ -140,23 +223,39 @@ export function installMultiSourceOrchestrator(){
   router.classifySourcePolicy=(text,baseIntent={})=>effectivePolicy(text,originalClassify(text,baseIntent));
   router.gatherSources=async(text,policy)=>{
     const effective=effectivePolicy(text,policy||router.classifySourcePolicy(text,{kind:'question'}));
-    const result=await originalGather(text,effective);
-    const allowLocal=Boolean(effective.useLocal);
-    const sources=annotateSources(result?.sources||[]).filter(source=>allowLocal||!isLocalSource(source));
+
+    // Critical isolation boundary: external research is always invoked with useDrive=false.
+    // This prevents legacy localApprovedSources() from entering researchEndpoint() as driveContext.
+    const externalPolicy={...effective,useDrive:false,useLocal:false,localRole:'disabled-for-external-research'};
+    const [drive,externalResult]=await Promise.all([
+      driveRuntimeSources(text,effective),
+      effective.useWeb ? originalGather(text,externalPolicy) : Promise.resolve({sources:[],endpointAnswer:'',provider:'none'})
+    ]);
+
+    const local=effective.useLocal?explicitLocalSources(text):[];
+    const derived=derivedExternalSource(externalResult?.endpointAnswer||'',externalResult);
+    const sources=annotateSources([
+      ...drive,
+      ...(externalResult?.sources||[]),
+      ...(derived?[derived]:[]),
+      ...local
+    ]).filter(source=>effective.useLocal||!isLocalSource(source));
+
     const driveCount=sources.filter(isDriveSource).length;
     const externalCount=sources.filter(isExternalSource).length;
     return{
-      ...result,
+      ...externalResult,
       sources,
       endpointAnswer:'',
-      preliminaryExternalAnswer:result?.endpointAnswer||'',
-      provider:'multisource-v26',
+      preliminaryExternalAnswer:stripMarkup(externalResult?.endpointAnswer||''),
+      provider:'multisource-v26.1',
       multiSource:{
         driveCount,
         externalCount,
         localCount:sources.filter(isLocalSource).length,
         localDependency:false,
-        localAllowed:allowLocal,
+        localAllowed:Boolean(effective.useLocal),
+        externalResearchDriveContext:false,
         finalSynthesis:'gemini-over-relevance-gated-source-pack'
       },
       effectivePolicy:effective
@@ -165,11 +264,7 @@ export function installMultiSourceOrchestrator(){
 
   installed=true;
   window.AIOfficeMultiSourceV26={
-    version:VERSION,
-    state:null,
-    effectivePolicy,
-    refreshDriveRuntime,
-    verifyCanary,
+    version:VERSION,state:null,effectivePolicy,refreshDriveRuntime,verifyCanary,
     canary:{query:CANARY_QUERY,fileId:CANARY_FILE_ID}
   };
 
