@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/voice/xiaozhi-voice-fabric.js', import.meta.url), 'utf8');
+const coordinator = await readFile(new URL('../src/voice-turn-coordinator-v25.js', import.meta.url), 'utf8');
 
 const required = [
   ['continuous SpeechRecognition', /continuous\s*=\s*true/],
@@ -29,4 +30,18 @@ assert.match(source, /echoSimilarity\(text,this\.currentSpeech\)>=0\.72/, 'echo 
 assert.match(source, /Date\.now\(\)-this\.lastPongAt>45000/, 'heartbeat stale threshold must remain bounded');
 assert.match(source, /setInterval\([^]*20000\)/, 'heartbeat interval must remain approximately 20 seconds');
 
-console.log('xiaozhi-client-contract-v24: continuity/barge-in/echo/reconnect/heartbeat PASS');
+const continuityRequired = [
+  ['bounded turn queue', /MAX_QUEUE=4/],
+  ['queue drain loop', /while\(queue\.length\)/],
+  ['read-only turn coalescing', /READ_ONLY_MODES/],
+  ['immediate cancellation path', /isImmediateCancel/],
+  ['stop speaking path', /isStopSpeaking/],
+  ['transcript deduplication', /isDuplicate/],
+  ['runtime spoken dispatch', /spoken:true,source:'voice-turn-coordinator-v25'/],
+  ['dispatch interception', /event\?\.type==='transcript'/]
+];
+for (const [label, pattern] of continuityRequired) {
+  assert.match(coordinator, pattern, `Voice turn coordinator contract missing: ${label}`);
+}
+
+console.log('xiaozhi-client-contract-v24: continuity/barge-in/echo/reconnect/heartbeat/queued-turns PASS');
