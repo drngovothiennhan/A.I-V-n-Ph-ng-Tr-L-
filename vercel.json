@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "env": {
+    "AI_OFFICE_GEMINI_MODEL": "gemini-3.8-flash",
     "GEMINI_MODEL": "gemini-3.8-flash",
     "XIAOZHI_PROTOCOL_VERSION": "1"
   },
