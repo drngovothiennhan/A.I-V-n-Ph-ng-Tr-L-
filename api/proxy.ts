@@ -9,7 +9,7 @@ const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 function geminiModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 }
-function isPrivateIp(ip: string) {
+function isPrivateIp(ip) {
   if (net.isIPv4(ip)) {
     const p = ip.split('.').map(Number);
     return p[0] === 10 || p[0] === 127 || p[0] === 0 ||
@@ -24,7 +24,7 @@ function isPrivateIp(ip: string) {
   return true;
 }
 
-async function assertPublicUrl(raw: string) {
+async function assertPublicUrl(raw) {
   const url = new URL(raw);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('UNSUPPORTED_PROTOCOL');
   if (url.username || url.password) throw new Error('URL_CREDENTIALS_FORBIDDEN');
@@ -35,11 +35,11 @@ async function assertPublicUrl(raw: string) {
   return url;
 }
 
-function cleanText(input: unknown, max = 12000) {
+function cleanText(input, max = 12000) {
   return String(input ?? '').replace(/\0/g, '').slice(0, max);
 }
 
-async function chief(body: any) {
+async function chief(body) {
   const message = cleanText(body?.message, 24000);
   if (!message) return { reply: '' };
   const key = process.env.GEMINI_API_KEY;
@@ -57,11 +57,11 @@ async function chief(body: any) {
   });
   if (!response.ok) return { reply: '', provider: 'local', fallback: true, upstreamStatus: response.status, model };
   const data = await response.json();
-  const reply = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
+  const reply = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('') || '';
   return { reply, provider: 'gemini', fallback: false, model };
 }
 
-async function webRead(body: any) {
+async function webRead(body) {
   const url = await assertPublicUrl(cleanText(body?.url, 2048));
   const response = await fetch(url, {
     redirect: 'follow',
@@ -82,14 +82,14 @@ async function webRead(body: any) {
   return { url: url.toString(), text, contentType: type };
 }
 
-async function artifact(body: any, res: any) {
+async function artifact(body, res) {
   try {
     const result = await createArtifact(body);
     res.setHeader('content-type', result.mime);
     res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
     res.setHeader('x-ai-office-artifact-engine', 'v1.9.3-structured');
     return res.status(200).send(result.buffer);
-  } catch (error: any) {
+  } catch (error) {
     if (error?.code === 'UNSUPPORTED_ARTIFACT_FORMAT') {
       return res.status(400).json({ error: 'UNSUPPORTED_ARTIFACT_FORMAT', supported: error.supported || ['docx', 'xlsx', 'pptx'] });
     }
@@ -97,7 +97,7 @@ async function artifact(body: any, res: any) {
   }
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   res.setHeader('x-content-type-options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
@@ -110,7 +110,7 @@ export default async function handler(req: any, res: any) {
     if (op === 'web') return res.status(200).json(await webRead(req.body));
     if (op === 'artifact') return artifact(req.body, res);
     return res.status(400).json({ error: 'INVALID_OP' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('proxy_error', { op, message: String(error?.message || error).slice(0, 300) });
     return res.status(502).json({ error: 'OPERATION_FAILED', op });
   }
