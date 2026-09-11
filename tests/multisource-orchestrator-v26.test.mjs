@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/multisource-orchestrator-v26.js', import.meta.url), 'utf8');
+const executableSource = source
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 
 const required = [
   ['version marker', /2\.6\.2-multisource-orchestrator/],
@@ -27,9 +30,9 @@ for (const [label, pattern] of required) {
   assert.match(source, pattern, `Multi-source contract missing: ${label}`);
 }
 
-assert.doesNotMatch(source, /\boriginalGather\s*\(/, 'legacy gather function must not be invoked by v2.6.2');
-assert.doesNotMatch(source, /\blocalApprovedSources\s*\(/, 'legacy local source function must not be invoked by v2.6.2');
-assert.doesNotMatch(source, /localDependency:true/, 'local dependency must never become the default');
-assert.match(source, /effective\.useLocal\?explicitLocalSources\(text\):\[\]/, 'local source collection must require explicit opt-in');
+assert.doesNotMatch(executableSource, /\boriginalGather\s*\(/, 'legacy gather function must not be invoked by v2.6.2');
+assert.doesNotMatch(executableSource, /\blocalApprovedSources\s*\(/, 'legacy local source function must not be invoked by v2.6.2');
+assert.doesNotMatch(executableSource, /localDependency:true/, 'local dependency must never become the default');
+assert.match(executableSource, /effective\.useLocal\?explicitLocalSources\(text\):\[\]/, 'local source collection must require explicit opt-in');
 
 console.log('multisource-orchestrator-v26: single-pass Drive + Gemini grounded + external, no local dependency PASS');
