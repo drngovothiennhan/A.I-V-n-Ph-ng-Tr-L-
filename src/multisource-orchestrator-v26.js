@@ -1,7 +1,8 @@
-const VERSION='2.6.2-multisource-orchestrator';
+const VERSION='2.7.0-multisource-orchestrator';
 const CANARY_QUERY='DBR-CANARY-2026-09-10';
 const CANARY_FILE_ID='1AfqRLNHMM87hyDXEy5J15KXcnvNsfiXsrfLgTh_H2Zg';
 const LOCAL_DOC_KEY='ai-office-drive-docs-v16';
+const INTERNAL_PREF_KEY='ai-office-use-internal-v27';
 const DRIVE_HEALTH_INTERVAL_MS=60000;
 const MAX_SOURCE_TEXT=12000;
 const STOPWORDS=new Set(['ai','gi','nao','la','co','khong','toi','ban','cho','biet','ve','cua','va','voi','mot','nhung','cac','nay','do','tai','tu','den','the','nhu','duoc','hay','can','muon','xin','vui','long','giup','thong','tin']);
@@ -9,9 +10,6 @@ const EXPLICIT_LOCAL_HINTS=[
   'file local','tep local','tai lieu local','file vua tai','tep vua tai','tai lieu vua tai',
   'file tai len','tep tai len','tai lieu tai len','upload local','file upload'
 ];
-const QUESTION_DRIVE_MODES=new Set([
-  'general_question','research_question','medical_question','internal_question','internal_admin_question','admin_document'
-]);
 
 let installed=false;
 let healthTimer=null;
@@ -62,6 +60,12 @@ function uniqSources(sources=[]){
 function readLocalDocs(){
   try{return JSON.parse(localStorage.getItem(LOCAL_DOC_KEY)||'[]')||[]}catch{return[]}
 }
+export function internalSourcesEnabled(){
+  try{
+    if(window.AIOfficeSourcePreferences?.useInternal===true)return true;
+    return localStorage.getItem(INTERNAL_PREF_KEY)==='1';
+  }catch{return false}
+}
 
 function sourceSemanticScore(query,source={}){
   const terms=semanticWords(query);
@@ -80,17 +84,17 @@ function relevantDriveSources(query,sources=[],policy={}){
   const terms=semanticWords(query);
   const min=terms.length>=4?2:1;
   return (Array.isArray(sources)?sources:[])
-    .map(source=>({...source,_v26Score:sourceSemanticScore(query,source)}))
+    .map(source=>({...source,_v27Score:sourceSemanticScore(query,source)}))
     .filter(source=>{
-      if(policy?.mode==='admin_document'&&/template/i.test(String(source.kind||source.source||'')))return source._v26Score>=0.5;
-      return source._v26Score>=min;
+      if(policy?.mode==='admin_document'&&/template/i.test(String(source.kind||source.source||'')))return source._v27Score>=0.5;
+      return source._v27Score>=min;
     })
-    .sort((a,b)=>b._v26Score-a._v26Score)
+    .sort((a,b)=>b._v27Score-a._v27Score)
     .slice(0,6);
 }
 
 function explicitLocalSources(query){
-  if(!explicitLocalRequested(query))return[];
+  if(!internalSourcesEnabled()||!explicitLocalRequested(query))return[];
   return readLocalDocs()
     .filter(doc=>doc?.status==='approved'&&!doc?.blocked&&doc?.text)
     .map(doc=>{
@@ -100,35 +104,34 @@ function explicitLocalSources(query){
         title:doc.name||'Tài liệu local đã duyệt',url:'',domain:'',text,
         approvalState:'approved',sourceOrigin:'local'
       };
-      return{...source,_v26Score:sourceSemanticScore(query,source)};
+      return{...source,_v27Score:sourceSemanticScore(query,source)};
     })
-    .filter(source=>source._v26Score>0)
-    .sort((a,b)=>b._v26Score-a._v26Score)
+    .filter(source=>source._v27Score>0)
+    .sort((a,b)=>b._v27Score-a._v27Score)
     .slice(0,4);
 }
-
 function effectivePolicy(query,policy={}){
   const mode=String(policy?.mode||'');
-  const local=explicitLocalRequested(query);
-  const questionLike=Boolean(policy?.question||QUESTION_DRIVE_MODES.has(mode));
-  const canUseDrive=questionLike&&mode!=='direct_runtime'&&mode!=='data_task';
+  const enabled=internalSourcesEnabled();
+  const eligible=mode!=='direct_runtime'&&mode!=='data_task';
+  const local=enabled&&explicitLocalRequested(query);
   return{
     ...policy,
-    useDrive:Boolean(policy?.useDrive||canUseDrive),
+    useInternal:enabled,
+    internalOptIn:enabled,
+    useDrive:enabled&&eligible,
     useLocal:local,
     localRole:local?'explicit-supplement':'disabled-by-default',
-    driveRole:canUseDrive?'opportunistic-canonical':'policy-default',
-    multiSourceV26:true
+    driveRole:enabled&&eligible?'opt-in-canonical':'disabled-until-user-opt-in',
+    multiSourceV27:true
   };
 }
-
 function driveScopes(policy={}){
   if(policy?.mode==='admin_document')return['03_TEMPLATES','02_APPROVED','01_KNOWLEDGE','04_SKILLS'];
   return['02_APPROVED','01_KNOWLEDGE','04_SKILLS'];
 }
-
 async function driveRuntimeSources(query,policy={}){
-  if(!policy?.useDrive)return[];
+  if(!policy?.internalOptIn||!policy?.useDrive)return[];
   try{
     const response=await fetch('/api/drive-brain',{
       method:'POST',headers:{'content-type':'application/json'},cache:'no-store',
@@ -146,7 +149,6 @@ async function driveRuntimeSources(query,policy={}){
     return relevantDriveSources(query,sources,policy);
   }catch{return[]}
 }
-
 async function researchWithCanonicalContext(query,policy={},canonicalContext=[]){
   if(!policy?.useWeb&&!canonicalContext.length)return{answer:'',sources:[],provider:'none',costTier:'zero-model'};
   try{
@@ -161,6 +163,7 @@ async function researchWithCanonicalContext(query,policy={},canonicalContext=[])
         query,
         mode:policy?.mode||'general_question',
         officialOnly:Boolean(policy?.officialOnly),
+        useInternal:Boolean(policy?.internalOptIn),
         driveContext:context
       })
     });
@@ -172,11 +175,11 @@ async function researchWithCanonicalContext(query,policy={},canonicalContext=[])
       provider:data?.provider||'research',
       model:data?.model||null,
       costTier:data?.costTier||null,
+      sourceMode:data?.sourceMode||null,
       limitations:Array.isArray(data?.limitations)?data.limitations:[]
     };
   }catch{return{answer:'',sources:[],provider:'research-failed',limitations:['RESEARCH_RUNTIME_FAILED']}}
 }
-
 function annotateSources(sources=[]){
   return uniqSources(sources).map(source=>({
     ...source,
@@ -184,7 +187,6 @@ function annotateSources(sources=[]){
     sourceOrigin:source?.sourceOrigin||(isLocalSource(source)?'local':isDriveSource(source)?'drive':'external')
   }));
 }
-
 async function probeDrive(){
   try{
     const response=await fetch('/api/drive-brain',{
@@ -195,7 +197,6 @@ async function probeDrive(){
     return{configured:Boolean(data?.configured),live:true,...data};
   }catch{return{configured:false,live:false,reason:'DRIVE_RUNTIME_UNREACHABLE'}}
 }
-
 async function verifyCanary(){
   try{
     const response=await fetch('/api/drive-brain',{
@@ -213,56 +214,63 @@ async function verifyCanary(){
     };
   }catch{return{pass:false,configured:false,reason:'DRIVE_CANARY_PROBE_FAILED'}}
 }
-
 function updateUi(driveState,canaryState=null){
   const router=window.AIOfficeV20;if(router)router.driveState=driveState;
-  const pills=[...document.querySelectorAll('.pills .pill')];
-  if(pills[2]){
-    if(canaryState?.pass)pills[2].textContent='☁ Drive Brain verified · Approved canary PASS';
-    else if(driveState?.configured)pills[2].textContent='☁ Drive Brain online · đang kiểm tra knowledge';
-    else pills[2].textContent='☁ Drive canonical · cần cấp Bridge runtime';
+  const enabled=internalSourcesEnabled();
+  const pill=document.getElementById('aiOfficeInternalSourcePill')||[...document.querySelectorAll('.pills .pill')][2];
+  if(pill){
+    pill.textContent=!enabled?'☁ Nội bộ: Tắt'
+      :canaryState?.pass?'☁ Nội bộ: Bật · Drive verified'
+      :driveState?.configured?'☁ Nội bộ: Bật · Drive online'
+      :'☁ Nội bộ: Bật · Drive chưa kết nối';
+    pill.classList.toggle('green',enabled);
+    pill.classList.toggle('blue',!enabled);
   }
   const status=document.getElementById('v19Status');
-  if(status&&canaryState?.pass)status.textContent='Multi-source v2.6.2 · Drive + Gemini Grounded + external · canary PASS';
+  if(status&&enabled&&canaryState?.pass)status.textContent='Gemini-first · nội bộ opt-in · Drive canary PASS';
 }
-
 async function refreshDriveRuntime({verify=true}={}){
   const drive=await probeDrive();
   let canary=null;if(drive?.configured&&verify)canary=await verifyCanary();
   updateUi(drive,canary);
-  const state={drive,canary,checkedAt:new Date().toISOString()};
+  const state={drive,canary,internalOptIn:internalSourcesEnabled(),checkedAt:new Date().toISOString()};
   if(window.AIOfficeMultiSourceV26)window.AIOfficeMultiSourceV26.state=state;
   window.dispatchEvent(new CustomEvent('ai-office-drive-runtime-state',{detail:state}));
   return state;
 }
-
 export function installMultiSourceOrchestrator(){
   if(installed)return true;
   const router=window.AIOfficeV20;
   if(!router?.gatherSources||!router?.classifySourcePolicy)return false;
   const originalClassify=router.classifySourcePolicy.bind(router);
 
-  router.classifySourcePolicy=(text,baseIntent={})=>effectivePolicy(text,originalClassify(text,baseIntent));
+  router.classifySourcePolicy=(text,baseIntent={})=>{
+    const intent={...baseIntent,useInternal:internalSourcesEnabled(),internalOptIn:internalSourcesEnabled()};
+    return effectivePolicy(text,originalClassify(text,intent));
+  };
   router.gatherSources=async(text,policy)=>{
     const effective=effectivePolicy(text,policy||router.classifySourcePolicy(text,{kind:'question'}));
 
-    // Isolation boundary: no legacy localApprovedSources()/originalGather() call exists here.
-    // Drive context comes only from authenticated /api/drive-brain. Local context is opt-in only.
-    const drive=await driveRuntimeSources(text,effective);
+    // Isolation boundary: Drive and local knowledge are disabled until the user explicitly opts in.
+    const drive=effective.internalOptIn?await driveRuntimeSources(text,effective):[];
     const local=effective.useLocal?explicitLocalSources(text):[];
     const canonicalContext=[...drive,...local].slice(0,6);
     const research=await researchWithCanonicalContext(text,effective,canonicalContext);
     const sources=annotateSources([...drive,...(research.sources||[]),...local])
-      .filter(source=>effective.useLocal||!isLocalSource(source));
+      .filter(source=>effective.internalOptIn||(!isDriveSource(source)&&!isLocalSource(source)));
+    const limitations=[...(research.limitations||[])];
+    if(effective?.internalRequested&&!effective.internalOptIn)limitations.unshift('INTERNAL_SOURCES_DISABLED_BY_USER');
 
     return{
       sources,
       endpointAnswer:research.answer||'',
-      provider:'multisource-v26.2',
+      provider:'multisource-v27',
       model:research.model||null,
       costTier:research.costTier||null,
-      limitations:research.limitations||[],
+      sourceMode:research.sourceMode||null,
+      limitations,
       multiSource:{
+        internalOptIn:Boolean(effective.internalOptIn),
         driveCount:sources.filter(isDriveSource).length,
         externalCount:sources.filter(isExternalSource).length,
         localCount:sources.filter(isLocalSource).length,
@@ -270,7 +278,9 @@ export function installMultiSourceOrchestrator(){
         localAllowed:Boolean(effective.useLocal),
         localTransferredToGemini:Boolean(local.length),
         driveTransferredToGemini:Boolean(drive.length),
-        finalSynthesis:drive.length||local.length?'single-pass-gemini-grounded-with-canonical-context':'cost-aware-external-fast-path'
+        finalSynthesis:effective.internalOptIn&&(drive.length||local.length)
+          ?'single-pass-gemini-grounded-with-opt-in-internal-context'
+          :'gemini-google-search-default'
       },
       effectivePolicy:effective
     };
@@ -279,13 +289,13 @@ export function installMultiSourceOrchestrator(){
   installed=true;
   window.AIOfficeMultiSourceV26={
     version:VERSION,state:null,effectivePolicy,refreshDriveRuntime,verifyCanary,relevantDriveSources,
-    canary:{query:CANARY_QUERY,fileId:CANARY_FILE_ID}
+    internalSourcesEnabled,canary:{query:CANARY_QUERY,fileId:CANARY_FILE_ID}
   };
   void refreshDriveRuntime({verify:true});
   healthTimer=setInterval(()=>void refreshDriveRuntime({verify:true}),DRIVE_HEALTH_INTERVAL_MS);
+  window.addEventListener('ai-office-source-preference-change',()=>void refreshDriveRuntime({verify:true}));
   window.addEventListener('online',()=>void refreshDriveRuntime({verify:true}));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refreshDriveRuntime({verify:true})});
   return true;
 }
-
 window.AIOfficeMultiSourceVersion=VERSION;
