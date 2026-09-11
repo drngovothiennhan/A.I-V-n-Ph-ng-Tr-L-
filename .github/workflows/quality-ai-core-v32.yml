@@ -2,12 +2,14 @@ name: AI Core Intent Contract QA
 
 on:
   push:
-    branches: [main]
+    branches: [main, ai-office-phase15-context]
     paths:
       - 'src/ai-orchestrator-core-v32.js'
+      - 'src/context-manager-v35.js'
       - 'src/interaction-policy-v22.js'
       - 'src/release-v193.js'
       - 'tests/ai-orchestrator-core-v32.test.mjs'
+      - 'tests/context-manager-v35.test.mjs'
       - '.github/workflows/quality-ai-core-v32.yml'
   workflow_dispatch:
 
@@ -22,7 +24,11 @@ jobs:
       - name: Syntax checks
         run: |
           node --check src/ai-orchestrator-core-v32.js
+          node --check src/context-manager-v35.js
           node --check src/release-v193.js
           node --check tests/ai-orchestrator-core-v32.test.mjs
+          node --check tests/context-manager-v35.test.mjs
       - name: Canonical intent regression
         run: node tests/ai-orchestrator-core-v32.test.mjs
+      - name: Bounded context regression
+        run: node tests/context-manager-v35.test.mjs
