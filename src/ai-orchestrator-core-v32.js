@@ -1,6 +1,6 @@
 import { classifyInteractionV22, normalizeV22 } from './interaction-policy-v22.js';
 
-export const AI_CORE_VERSION = '3.2.0-canonical-intent-contract';
+export const AI_CORE_VERSION = '3.2.1-source-consent-safe';
 export const CANONICAL_INTENTS = Object.freeze({
   QUESTION:'QUESTION',
   TASK:'TASK',
@@ -15,27 +15,29 @@ export const CANONICAL_INTENTS = Object.freeze({
 });
 
 const INTERNAL_HINTS=/\b(tai lieu noi bo|tai lieu cua co quan|theo tai lieu|theo ho so|kho kien thuc|knowledge base|drive noi bo|google drive|du lieu co quan|du lieu to chuc)\b/;
+const INTERNAL_NEGATION=/\b(khong dung|khong su dung|khong truy cap|bo qua|dung bo|khong lay|khong doc)\b.{0,48}\b(tai lieu noi bo|tai lieu cua co quan|kho kien thuc|knowledge base|drive noi bo|google drive|du lieu co quan|du lieu to chuc)\b/;
 const SEARCH_HINTS=/\b(tra cuu|nghien cuu|tim nguon|kiem chung|doi chieu nguon|nguon chinh thuc|moi nhat|cap nhat moi|tim tren web|tim tren internet|search)\b/;
 const COMM_HINTS=/\b(email|gmail|thu dien tu|calendar|lich hop|lich lam viec|cuoc hop|meeting|tin nhan|thong bao)\b/;
 const COMM_ACTIONS=/\b(gui|soan|tra loi|reply|forward|chuyen tiep|dat lich|tao lich|doi lich|huy lich|moi|len lich|cap nhat lich)\b/;
 const APP_HINTS=/\b(module|trang|menu|dashboard|ai center|task center|cai dat|xiaozhi|voice|micro|mic)\b/;
 const APP_ACTIONS=/^(mo|dong|chuyen|di toi|vao|bat|tat|quay lai)\b/;
-const SYSTEM_HINTS=/\b(huy cong viec|huy lenh|bo lenh|dung cong viec|dung tac vu|huy phe duyet|huy tai len|huy xu ly|huy ket qua|toi uu he thong|kiem tra he thong|trang thai he thong|khoi dong lai)\b/;
+const SYSTEM_HINTS=/\b(huy cong viec|huy lenh|bo lenh|dung cong viec|dung tac vu|huy phe duyet|huy tai len|huy xu ly|huy ket qua|khong dung du lieu vua gui|bo ket qua nay|toi uu he thong|kiem tra he thong|trang thai he thong|khoi dong lai)\b/;
 const VOICE_CONTROLS=/\b(dung noi|ngung noi|noi lai|lap lai|doc lai|tiep tuc nghe|nghe tiep|bat lai micro|bat lai mic)\b/;
 const DOCUMENT_OUTPUT=/\b(docx|word|file word|van ban|bao cao|ke hoach|cong van|to trinh|thong bao|quyet dinh|bien ban|giay moi)\b/;
 const DATA_OUTPUT=/\b(xlsx|excel|csv|bang tinh|du lieu|danh sach|doi chieu|loc danh sach|thong ke|pivot)\b/;
 const MUTATION=/\b(tao|soan|lap|xuat|loc|doi chieu|sua|cap nhat|trien khai|thuc hien|thi hanh|lam|gui|dang|xoa|ket noi|cau hinh)\b/;
 
 function uniq(list=[]){return [...new Set(list.filter(Boolean))]}
+function explicitInternalRequested(n=''){return INTERNAL_HINTS.test(n)&&!INTERNAL_NEGATION.test(n)}
 function sourceDirective(type,n,context={}){
-  const explicitInternal=INTERNAL_HINTS.test(n);
+  const explicitInternal=explicitInternalRequested(n);
   const enabled=Boolean(context.internalOptIn||context.useInternal);
   if(type===CANONICAL_INTENTS.INTERNAL_KNOWLEDGE_TASK||explicitInternal){
     return {
       mode:'internal',
       internalRequested:true,
       internalAuthorized:enabled||explicitInternal,
-      externalAllowed:Boolean(context.allowExternalWithInternal),
+      externalAllowed:context.allowExternalWithInternal!==false,
       preferredProvider:'gemini',
       reason:explicitInternal?'explicit-user-internal-request':'internal-intent'
     };
@@ -67,7 +69,7 @@ function canonicalType(raw,n,interaction,context={}){
   if(SYSTEM_HINTS.test(n))return CANONICAL_INTENTS.SYSTEM_COMMAND;
   if(APP_ACTIONS.test(n)&&APP_HINTS.test(n))return CANONICAL_INTENTS.APP_COMMAND;
   if(COMM_HINTS.test(n)&&COMM_ACTIONS.test(n))return CANONICAL_INTENTS.COMMUNICATION_TASK;
-  if(INTERNAL_HINTS.test(n))return CANONICAL_INTENTS.INTERNAL_KNOWLEDGE_TASK;
+  if(explicitInternalRequested(n))return CANONICAL_INTENTS.INTERNAL_KNOWLEDGE_TASK;
   if(interaction?.mode==='hybrid'){
     if(interaction.taskKind==='data')return CANONICAL_INTENTS.DATA_TASK;
     if(interaction.taskKind==='admin')return CANONICAL_INTENTS.DOCUMENT_TASK;

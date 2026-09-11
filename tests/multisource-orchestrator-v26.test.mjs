@@ -17,11 +17,14 @@ const executableSource = source
   .replace(/^\s*\/\/.*$/gm, '');
 
 const required = [
-  ['v2.7 version marker', /2\.7\.0-multisource-orchestrator/],
+  ['v2.7.1 version marker', /2\.7\.1-canonical-source-consent/],
   ['approved canary id', /DBR-CANARY-2026-09-10/],
   ['approved scope canary search', /scopes:\['02_APPROVED'\]/],
   ['internal preference reader', /internalSourcesEnabled/],
-  ['Drive requires explicit internal opt-in', /if\(!policy\?\.internalOptIn\|\|!policy\?\.useDrive\)return\[\]/],
+  ['canonical intent source-consent reader', /AIOfficeOrchestrator\?\.classifyIntent/],
+  ['explicit text consent audit', /internalConsent:explicitInternal\?'explicit-text-request'/],
+  ['negative internal-source guard', /khong dung\|khong su dung\|khong truy cap/],
+  ['Drive requires explicit internal consent', /if\(!policy\?\.internalOptIn\|\|!policy\?\.useDrive\)return\[\]/],
   ['direct authenticated Drive runtime retrieval', /fetch\('\/api\/drive-brain'/],
   ['Drive relevance gate before synthesis', /relevantDriveSources/],
   ['explicit local source reader', /explicitLocalSources/],
@@ -39,19 +42,21 @@ for (const [label, pattern] of required) assert.match(source, pattern, `Multi-so
 
 assert.doesNotMatch(executableSource, /QUESTION_DRIVE_MODES/, 'questions must not auto-enable Drive');
 assert.doesNotMatch(executableSource, /localDependency:true/, 'local dependency must never become the default');
-assert.match(executableSource, /effective\.internalOptIn\?await driveRuntimeSources\(text,effective\):\[\]/, 'Drive collection must require explicit opt-in');
+assert.match(executableSource, /effective\.internalOptIn&&effective\.useDrive\?await driveRuntimeSources\(text,effective\):\[\]/, 'Drive collection must require consent and Drive eligibility');
 
 assert.match(control,/ai-office-use-internal-v27/,'source toggle must have its own preference key');
 assert.match(control,/localStorage\.getItem\(KEY\)==='1'/,'absence of preference must default to false');
 assert.match(control,/Dùng tài liệu nội bộ/,'UI must expose a clear internal-source toggle');
 assert.match(control,/Gemini Search mặc định/,'UI must disclose the default search provider');
 
+assert.match(release,/ai-orchestrator-core-v32\.js\?v=321/,'canonical intent contract must boot before source routing');
 assert.match(release,/internal-source-control-v27\.js\?v=270/,'production release chain must load internal source control');
 assert.match(release,/sourceControl\.installInternalSourceControl\?\.\(\)/,'production release chain must activate internal source control');
-assert.match(release,/multisource-orchestrator-v26\.js\?v=270/,'production release chain must load v2.7 multisource router');
+assert.match(release,/multisource-orchestrator-v26\.js\?v=271/,'production release chain must load v2.7.1 multisource router');
+const coreBoot=release.indexOf('installAICoreOrchestrator');
 const controlBoot=release.indexOf('installInternalSourceControl');
 const multiBoot=release.indexOf('installMultiSourceOrchestrator');
-assert.ok(controlBoot>=0&&multiBoot>controlBoot,'source-consent UI must initialize before multisource router');
+assert.ok(coreBoot>=0&&controlBoot>coreBoot&&multiBoot>controlBoot,'canonical intent -> source consent UI -> multisource order must be preserved');
 
 assert.match(researchEntry,/import v31 from '\.\/research-v31\.js'/,'public research endpoint must route through v3.1 entry');
 const geminiCall=research.indexOf('const grounded=await geminiGrounded');
@@ -62,4 +67,4 @@ assert.match(research,/const\s+driveContext\s*=\s*useInternal\s*\?\s*suppliedCon
 assert.match(research,/INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/,'server must audit rejected internal context');
 assert.match(research,/tools:\[\{google_search:\{\}\}\]/,'Gemini must use Google Search grounding');
 
-console.log('multisource-orchestrator-v31: Gemini-first + timeout-resilient fresh entry + opt-in internal sources PASS');
+console.log('multisource-orchestrator-v31: Gemini-first + canonical source consent + opt-in internal sources PASS');

@@ -1,12 +1,12 @@
 const RELEASE = '1.9.3';
-const AI_CORE = '3.2';
-const KNOWLEDGE_ROUTER = '2.7';
+const AI_CORE = '3.2.1';
+const KNOWLEDGE_ROUTER = '2.7.1';
 const INTERACTION_CONTROL = '2.2';
 const WEATHER_BRIDGE = '2.1';
 const VOICE_RENDER_BRIDGE = '2.3';
 const VOICE_TURN_COORDINATOR = '2.5';
 const INTERNAL_SOURCE_CONTROL = '2.7.0';
-const MULTISOURCE_ORCHESTRATOR = '2.7.0';
+const MULTISOURCE_ORCHESTRATOR = '2.7.1';
 const RESEARCH_SAFETY = '2.6.3';
 const PRODUCT_COMPLETION = '2.4';
 const CREDENTIALS_RUNTIME = '2.3.0';
@@ -27,15 +27,15 @@ function syncReleaseLabels() {
 async function bootKnowledgeRouter() {
   try {
     // Canonical intent contract initializes first; existing v1.9/v2.x behavior remains the execution engine.
-    const aiCore = await import('./ai-orchestrator-core-v32.js?v=320');
+    const aiCore = await import('./ai-orchestrator-core-v32.js?v=321');
     aiCore.installAICoreOrchestrator?.();
 
     // Install the explicit source-consent UI before any router can derive source policy.
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
     sourceControl.installInternalSourceControl?.();
 
-    await import('./knowledge-router-v20.js?v=270');
-    const multiSource = await import('./multisource-orchestrator-v26.js?v=270');
+    await import('./knowledge-router-v20.js?v=271');
+    const multiSource = await import('./multisource-orchestrator-v26.js?v=271');
     multiSource.installMultiSourceOrchestrator?.();
 
     const researchSafety = await import('./research-safety-guard-v263.js?v=263');

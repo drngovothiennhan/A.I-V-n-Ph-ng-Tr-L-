@@ -37,11 +37,13 @@ assert.match(v30, /FRESH_HINTS=\['moi nhat','hom nay'/, 'v3.0 must use accent-in
 assert.match(v30, /function robustLatest\(/, 'v3.0 must expose robust freshness detection');
 assert.match(v30, /query:`\$\{original\} news`/, 'v3.0 must force the stable ASCII freshness sentinel into v2.9');
 
-assert.match(v31, /VERSION='3\.1\.0-timeout-resilient-freshness'/, 'v3.1 must expose timeout-resilient version');
+assert.match(v31, /VERSION='3\.1\.1-provider-health-aware'/, 'v3.1 must expose provider-health-aware version');
 assert.match(v31, /googleNews\(original\)/, 'v3.1 must retrieve fresh Google News evidence');
 assert.match(v31, /timeout:14000,maxOutputTokens:1200/, 'v3.1 synthesis must have a bounded latency budget');
-assert.match(v31, /fresh-news-extractive-v31/, 'v3.1 must return deterministic fresh evidence instead of HTTP 502 when Gemini synthesis times out');
-assert.match(v31, /GEMINI_SYNTHESIS_TIMEOUT_OR_UNAVAILABLE/, 'v3.1 timeout fallback must be auditable');
+assert.match(v31, /fresh-news-extractive-v31/, 'v3.1 must return deterministic fresh evidence instead of HTTP 502 when Gemini synthesis fails');
+assert.match(v31, /GEMINI_SECOND_CALL_SKIPPED_PROVIDER_UNHEALTHY/, 'v3.1 must audit circuit behavior when Gemini auth/quota is unhealthy');
+assert.match(v31, /const generated=providerCircuitOpen\?null:await gemini/, 'v3.1 must not spend a second Gemini request after quota/auth rejection');
+assert.match(v31, /GEMINI_PROVIDER_UNHEALTHY_USING_DETERMINISTIC_FALLBACK/, 'v3.1 provider fallback must be auditable');
 assert.match(v31, /provider:'gemini-fresh-search-synthesis-v31'/, 'v3.1 must keep Gemini as preferred fresh synthesis provider');
 assert.match(v31, /freshnessPolicy:'latest-only-v31'/, 'v3.1 fresh responses must expose freshness policy');
 assert.doesNotMatch(v31, /wiki\(/, 'v3.1 must not retrieve Wikipedia for fresh queries');
@@ -51,4 +53,4 @@ assert.doesNotMatch(proxy, /:\s*(?:string|unknown|any)\b/, 'proxy runtime must r
 assert.match(proxy, /async function chief\(body\)/, 'proxy chief path must be plain JS compatible');
 assert.match(proxy, /export default async function handler\(req, res\)/, 'proxy entry must be plain JS compatible');
 
-console.log('research-relevance-v31: bounded fresh retrieval + deterministic timeout fallback + loader-compatible proxy PASS');
+console.log('research-relevance-v31: provider-health-aware fresh retrieval + deterministic fallback + loader-compatible proxy PASS');

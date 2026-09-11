@@ -1,4 +1,4 @@
-const VERSION='2.7.0-multisource-orchestrator';
+const VERSION='2.7.1-canonical-source-consent';
 const CANARY_QUERY='DBR-CANARY-2026-09-10';
 const CANARY_FILE_ID='1AfqRLNHMM87hyDXEy5J15KXcnvNsfiXsrfLgTh_H2Zg';
 const LOCAL_DOC_KEY='ai-office-drive-docs-v16';
@@ -10,6 +10,7 @@ const EXPLICIT_LOCAL_HINTS=[
   'file local','tep local','tai lieu local','file vua tai','tep vua tai','tai lieu vua tai',
   'file tai len','tep tai len','tai lieu tai len','upload local','file upload'
 ];
+const EXPLICIT_INTERNAL_HINTS=['tai lieu noi bo','tai lieu cua co quan','theo tai lieu','theo ho so','kho kien thuc','knowledge base','drive noi bo','google drive','du lieu co quan','du lieu to chuc'];
 
 let installed=false;
 let healthTimer=null;
@@ -37,6 +38,19 @@ function semanticWords(text=''){
 function explicitLocalRequested(text=''){
   const n=normalize(text);
   return EXPLICIT_LOCAL_HINTS.some(x=>n.includes(x));
+}
+function directInternalRequest(text=''){
+  const n=normalize(text);
+  const negative=/\b(khong dung|khong su dung|khong truy cap|bo qua|dung bo|khong lay|khong doc)\b.{0,48}\b(tai lieu noi bo|tai lieu cua co quan|kho kien thuc|knowledge base|drive noi bo|google drive|du lieu co quan|du lieu to chuc)\b/.test(n);
+  return !negative&&EXPLICIT_INTERNAL_HINTS.some(x=>n.includes(x));
+}
+function explicitInternalRequested(text=''){
+  try{
+    const intent=window.AIOfficeOrchestrator?.classifyIntent?.(text,{internalOptIn:internalSourcesEnabled()});
+    if(intent?.source?.internalRequested===true&&intent?.source?.internalAuthorized===true)return true;
+    if(intent?.source?.internalRequested===false)return false;
+  }catch{}
+  return directInternalRequest(text);
 }
 function isLocalSource(source={}){
   return /(^|[-_ ])local($|[-_ ])/i.test(String(source.kind||'')) || /^Local approved/i.test(String(source.source||''));
@@ -94,7 +108,7 @@ function relevantDriveSources(query,sources=[],policy={}){
 }
 
 function explicitLocalSources(query){
-  if(!internalSourcesEnabled()||!explicitLocalRequested(query))return[];
+  if(!explicitLocalRequested(query))return[];
   return readLocalDocs()
     .filter(doc=>doc?.status==='approved'&&!doc?.blocked&&doc?.text)
     .map(doc=>{
@@ -112,17 +126,23 @@ function explicitLocalSources(query){
 }
 function effectivePolicy(query,policy={}){
   const mode=String(policy?.mode||'');
-  const enabled=internalSourcesEnabled();
+  const uiEnabled=internalSourcesEnabled();
+  const explicitInternal=explicitInternalRequested(query);
+  const explicitLocal=explicitLocalRequested(query);
+  const driveEnabled=uiEnabled||explicitInternal;
+  const internalEnabled=driveEnabled||explicitLocal;
   const eligible=mode!=='direct_runtime'&&mode!=='data_task';
-  const local=enabled&&explicitLocalRequested(query);
+  const local=(uiEnabled||explicitLocal)&&explicitLocal;
   return{
     ...policy,
-    useInternal:enabled,
-    internalOptIn:enabled,
-    useDrive:enabled&&eligible,
+    useInternal:internalEnabled,
+    internalOptIn:internalEnabled,
+    internalRequested:Boolean(policy?.internalRequested||explicitInternal||explicitLocal),
+    internalConsent:explicitInternal?'explicit-text-request':explicitLocal?'explicit-local-file-request':uiEnabled?'ui-opt-in':'none',
+    useDrive:driveEnabled&&eligible,
     useLocal:local,
     localRole:local?'explicit-supplement':'disabled-by-default',
-    driveRole:enabled&&eligible?'opt-in-canonical':'disabled-until-user-opt-in',
+    driveRole:driveEnabled&&eligible?'opt-in-canonical':'disabled-until-user-opt-in',
     multiSourceV27:true
   };
 }
@@ -245,14 +265,15 @@ export function installMultiSourceOrchestrator(){
   const originalClassify=router.classifySourcePolicy.bind(router);
 
   router.classifySourcePolicy=(text,baseIntent={})=>{
-    const intent={...baseIntent,useInternal:internalSourcesEnabled(),internalOptIn:internalSourcesEnabled()};
+    const persistent=internalSourcesEnabled();
+    const intent={...baseIntent,useInternal:persistent,internalOptIn:persistent};
     return effectivePolicy(text,originalClassify(text,intent));
   };
   router.gatherSources=async(text,policy)=>{
     const effective=effectivePolicy(text,policy||router.classifySourcePolicy(text,{kind:'question'}));
 
-    // Isolation boundary: Drive and local knowledge are disabled until the user explicitly opts in.
-    const drive=effective.internalOptIn?await driveRuntimeSources(text,effective):[];
+    // Isolation boundary: internal sources require UI opt-in OR an explicit textual/local-file request.
+    const drive=effective.internalOptIn&&effective.useDrive?await driveRuntimeSources(text,effective):[];
     const local=effective.useLocal?explicitLocalSources(text):[];
     const canonicalContext=[...drive,...local].slice(0,6);
     const research=await researchWithCanonicalContext(text,effective,canonicalContext);
@@ -271,6 +292,7 @@ export function installMultiSourceOrchestrator(){
       limitations,
       multiSource:{
         internalOptIn:Boolean(effective.internalOptIn),
+        internalConsent:effective.internalConsent||'none',
         driveCount:sources.filter(isDriveSource).length,
         externalCount:sources.filter(isExternalSource).length,
         localCount:sources.filter(isLocalSource).length,
@@ -289,7 +311,7 @@ export function installMultiSourceOrchestrator(){
   installed=true;
   window.AIOfficeMultiSourceV26={
     version:VERSION,state:null,effectivePolicy,refreshDriveRuntime,verifyCanary,relevantDriveSources,
-    internalSourcesEnabled,canary:{query:CANARY_QUERY,fileId:CANARY_FILE_ID}
+    internalSourcesEnabled,explicitInternalRequested,canary:{query:CANARY_QUERY,fileId:CANARY_FILE_ID}
   };
   void refreshDriveRuntime({verify:true});
   healthTimer=setInterval(()=>void refreshDriveRuntime({verify:true}),DRIVE_HEALTH_INTERVAL_MS);

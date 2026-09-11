@@ -18,10 +18,16 @@ const internal=c('Theo tài liệu nội bộ của cơ quan, nội dung này l�
 assert.equal(internal.type,I.INTERNAL_KNOWLEDGE_TASK);
 assert.equal(internal.source.mode,'internal');
 assert.equal(internal.source.internalRequested,true);
+assert.equal(internal.source.internalAuthorized,true,'explicit internal request is one-shot source consent');
+const noInternal=c('Không dùng tài liệu nội bộ, hãy tìm nguồn chính thức mới nhất.');
+assert.equal(noInternal.type,I.SEARCH_TASK,'negative internal phrase must not become internal intent');
+assert.equal(noInternal.source.internalRequested,false,'negative source consent must be respected');
+assert.equal(noInternal.source.mode,'external-default');
 const mail=c('Gửi email báo cáo cho phòng hành chính.');
 assert.equal(mail.type,I.COMMUNICATION_TASK);
 assert.equal(mail.needsApproval,true,'send email is a side-effect/high-risk interaction in current policy');
 assert.equal(c('Hủy công việc này.').type,I.SYSTEM_COMMAND);
+assert.equal(c('Không dùng dữ liệu vừa gửi.').type,I.SYSTEM_COMMAND);
 assert.equal(c('Mở AI Center.').type,I.APP_COMMAND);
 assert.equal(c('Dừng nói.').type,I.VOICE_COMMAND);
 const normal=c('Thời tiết hôm nay thế nào?');
@@ -34,4 +40,4 @@ assert.equal(envelope.context.conversationId,'test-conversation');
 assert.equal(envelope.route.artifactFormats[0],'docx');
 assert.match(AI_CORE_VERSION,/^3\.2\./);
 
-console.log('ai-orchestrator-core-v32: canonical intent + source defaults PASS');
+console.log('ai-orchestrator-core-v32: canonical intent + source consent safety PASS');
