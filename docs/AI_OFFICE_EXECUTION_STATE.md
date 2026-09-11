@@ -3,11 +3,11 @@
 Updated: 2026-09-12
 
 ## CURRENT_PHASE
-PHASE 15–17 COMPLETE — CONTEXT / TASK CENTER / AI CENTER
-NEXT: PHASE 18 — measured performance + AI health hardening; production deployment remains BLOCKED by missing VERCEL_TOKEN.
+PHASE 18 COMPLETE — MEASURED AI HEALTH / CHIEF TIMEOUT RESILIENCE
+NEXT: continue only with measured high-impact runtime issues; production deployment remains BLOCKED by missing VERCEL_TOKEN.
 
 ## CURRENT_OBJECTIVE
-Continue additive production-safe restructuring from the verified canonical orchestrator and Operations Center. Preserve the approved Dashboard v1.5 shell, automation/artifact/source/voice contracts, and only optimize measured/high-impact issues. Do not re-audit from zero and do not report source/CI changes as production-live until Vercel smoke proves the current main commit.
+Continue additive production-safe restructuring from the verified canonical orchestrator and Operations Center. Preserve the approved Dashboard v1.5 shell, automation/artifact/source/voice contracts, and optimize only measured/high-impact issues. Do not re-audit from zero and do not report source/CI changes as production-live until Vercel smoke proves the current main source.
 
 ## COMPLETED
 - PHASE 0 baseline/safety audit completed.
@@ -20,9 +20,11 @@ Continue additive production-safe restructuring from the verified canonical orch
 - PHASE 14 Authorization Broker v3.4 merged to `main`: service/reason/scope/resource popup contract; Drive stays `drive.readonly`; connection setup is never reported as authorization success; missing Drive runtime is surfaced when internal source is enabled; existing credential UI is reused rather than duplicating secret handling.
 - PHASE 15 Context Manager v3.5 merged to `main`: bounded recent context, current task/source/approval/cancel snapshot, deterministic compression; long history is not copied into every request.
 - PHASE 16–17 Operations Center v3.6 merged to `main`: unified drawer/modal with Task Center + AI Center; reuses existing task store/navigation, Global Cancel and canonical retry runtime; measured progress only; AI health uses `/api/health`; no quota-consuming Gemini probe; missing telemetry is shown as `NO TELEMETRY` instead of fabricated values.
-- Current `main` source commit: `4f987b828b5a530f9538c32d857838e2e66e8612`.
-- AI Core main run #7 (`34655282531`) PASS.
-- Source Router + Interaction QA main run #162 (`34655282618`) PASS source-policy, multisource, research, interaction, context, cancel, authorization, Operations Center, business workflow, Drive, XiaoZhi, artifact round-trip and dependency audit.
+- PHASE 18 measured runtime review used Vercel production error clusters instead of speculative optimization. Main actionable issue was repeated `proxy_error` for `chief` provider timeouts.
+- PHASE 18 Chief resilience merged to `main`: Gemini `chief` timeout reduced from 30s to 12s; timeout/abort returns an honest local-fallback response instead of becoming HTTP 502; provider health/limitation/timeout metadata are returned; timeout audit does not log the user prompt. Non-timeout failures still propagate to the existing error path.
+- Source code through PHASE 18: `fe1868d29ed72b21a320ad18380c9dcb77faeb77`.
+- PHASE 18 feature QA run #164 (`34655534706`) PASS full regression and dependency audit.
+- PHASE 18 main QA run #165 (`34655572983`) PASS source-policy, multisource, research, interaction, context, cancel, authorization, Operations Center, Chief resilience, business workflow, Drive, XiaoZhi, artifact round-trip and dependency audit.
 
 ## FILES_CHANGED
 Key additive/modified files through current checkpoint:
@@ -31,6 +33,7 @@ Key additive/modified files through current checkpoint:
 - `src/multisource-orchestrator-v26.js`
 - `api/research-v31.js`
 - `api/drive-brain.ts`
+- `api/proxy.ts`
 - `src/interaction-runtime-v22.js`
 - `src/interaction-runtime-v23.js`
 - `src/interaction-policy-v21.js`
@@ -43,6 +46,7 @@ Key additive/modified files through current checkpoint:
 - `tests/global-cancel-v33.test.mjs`
 - `tests/authorization-broker-v34.test.mjs`
 - `tests/operations-center-v36.test.mjs`
+- `tests/proxy-chief-resilience-v37.test.mjs`
 - `.github/workflows/quality-ai-core-v32.yml`
 - `.github/workflows/quality-v20.yml`
 - `docs/AI_OFFICE_EXECUTION_STATE.md`
@@ -56,20 +60,22 @@ Key additive/modified files through current checkpoint:
 - Global Cancel + canonical runtime regression: PASS.
 - Authorization Broker least-privilege/readiness regression: PASS.
 - Operations Center honest telemetry/task-state regression: PASS.
+- Chief timeout resilience regression: PASS.
 - Office business workflow/risk regression: PASS.
 - Drive registry/bridge/readonly provider regression: PASS.
 - XiaoZhi client continuity + gateway fallback regression: PASS.
 - Office artifact round-trip regression: PASS.
 - `npm audit --omit=dev --audit-level=high`: PASS.
 - Live production `/api/health`: HTTP 200 at 2026-09-11T22:45Z.
+- Production error cluster review (24h): 75 `url.parse()` deprecation warnings; 22 `stripTypeScriptTypes` experimental warnings; 4 measured `chief` timeout errors; lower-frequency historical loader/research/provider timeout errors. Only the measured current-source Chief timeout gap was patched in PHASE 18.
 
 ## PRODUCTION_STATUS
 - Vercel project: `ai-van-phong-tro-ly` (`prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc`).
 - Production domain: `https://ai-van-phong-tro-ly.vercel.app`.
 - Latest listed production deployment remains `dpl_DfW8oQE4WTrsQTJxLVWtVmfi3sca`, READY.
 - Live `/api/health` at 2026-09-11T22:45Z reports `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
-- Therefore PHASE 1/2/3/5/12/14/15/16/17 source changes on `main` are NOT yet production-verified.
-- GitHub Actions deploy job for main run #162 concluded success at the job level, but Install/Pull/Build/Deploy/Smoke steps were all SKIPPED because `VERCEL_TOKEN` is absent.
+- Therefore PHASE 1/2/3/5/12/14/15/16/17/18 source changes on `main` are NOT yet production-verified.
+- GitHub Actions deploy step remains credential-gated; without `VERCEL_TOKEN`, Install/Pull/Build/Deploy/Smoke are skipped even when the deploy job itself reports success.
 - Do not mark production COMPLETE until live source commit and smoke tests prove deployment of current `main`.
 
 ## OPEN_ERRORS
@@ -77,8 +83,9 @@ Key additive/modified files through current checkpoint:
 - Google Drive runtime is not configured in production; end-to-end internal knowledge retrieval cannot be verified yet.
 - Google Workspace runtime actions are not configured.
 - Durable Drive semantic indexing/delta synchronization is not yet implemented/proven; current system performs direct retrieval + relevance ranking.
-- Production still serves old source commit `825dbf...` while GitHub `main` is `4f987b8...`.
-- Node/GitHub runner deprecation warnings around legacy dependencies remain non-fatal; do not chase them ahead of measured product-impact issues.
+- Production still serves old source commit `825dbf...` while PHASE 18 source is `fe1868d...`.
+- `url.parse()` DEP0169 and `stripTypeScriptTypes` warnings are measured but currently warning-only. Do not refactor broad runtime loader code solely to silence warnings without product-impact evidence.
+- Older runtime-loader syntax/bare-module errors were observed on historical/current-old deployments; re-evaluate after current source can be deployed before creating new broad loader patches.
 
 ## BLOCKERS
 - `VERCEL_TOKEN` absent from GitHub Actions secrets, so explicit production build/deploy/smoke is skipped.
@@ -86,10 +93,10 @@ Key additive/modified files through current checkpoint:
 - Gemini Grounding must recover from 429 before provider health can be marked fully healthy.
 
 ## NEXT_ACTION
-1. PHASE 18: inspect measured runtime/health signals and eliminate only high-impact performance or provider-health problems; avoid speculative optimization.
-2. Keep Task Center/AI Center additive to Dashboard v1.5 and avoid duplicate state stores.
-3. If provider/runtime telemetry is missing, expose honest telemetry before attempting dashboard analytics.
-4. Re-run full QA after every runtime change.
+1. Re-check measured production error clusters only after current source is deployable; compare new errors against the PHASE 18 baseline.
+2. If continuing before deployment, work only on source-side issues backed by current-code tests or measurable runtime behavior; do not chase warning-only noise.
+3. Keep Task Center/AI Center additive to Dashboard v1.5 and avoid duplicate state stores.
+4. If provider/runtime telemetry is missing, expose honest telemetry before attempting dashboard analytics.
 5. Production smoke only after deploy credential becomes available.
 
 ## DO_NOT_BREAK
@@ -104,6 +111,7 @@ Key additive/modified files through current checkpoint:
 - Safe/reversible auto-execution and approval gate for irreversible actions.
 - Existing credential setup UI and server-side secret handling.
 - Operations Center honest telemetry rule: no fake percentages, quotas, latency or provider health.
+- Chief timeout fallback must remain fail-fast and honest; do not convert arbitrary non-timeout provider/network errors into fake success.
 
 ## AI_PROVIDER_STATUS
 - Gemini: CONFIGURED / DEGRADED (latest explicit grounding probe 429; AI Center does not consume quota merely to render status).
@@ -114,5 +122,5 @@ Key additive/modified files through current checkpoint:
 - Google Workspace actions: NOT CONFIGURED.
 
 ## DEPLOYMENT_STATUS
-SOURCE READY / CI PASS at `4f987b828b5a530f9538c32d857838e2e66e8612`.
+SOURCE READY / CI PASS through PHASE 18 at `fe1868d29ed72b21a320ad18380c9dcb77faeb77`.
 PRODUCTION NOT UPDATED/NOT VERIFIED for current source because Vercel deployment steps are skipped without `VERCEL_TOKEN`; live source remains `825dbf8073284eadc38800245f42d4f70f647c98`.
