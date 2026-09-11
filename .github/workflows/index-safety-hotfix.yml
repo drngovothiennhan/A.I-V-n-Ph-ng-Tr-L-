@@ -1,0 +1,35 @@
+name: Index Safety Bootstrap Hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/index-safety-hotfix.yml'
+      - 'scripts/patch-index-safety-loader.mjs'
+      - 'src/research-safety-bootstrap-v263.js'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Inject versioned safety loader
+        run: node scripts/patch-index-safety-loader.mjs
+      - name: Commit app-shell hotfix
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'index.html already contains safety bootstrap.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'ai-office-ci'
+          git config user.email 'ai-office-ci@users.noreply.github.com'
+          git add index.html
+          git commit -m 'fix: inject research safety bootstrap into app shell [skip ci]'
+          git push origin HEAD:main
