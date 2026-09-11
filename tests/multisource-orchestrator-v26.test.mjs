@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const source = await readFile(new URL('../src/multisource-orchestrator-v26.js', import.meta.url), 'utf8');
 const control = await readFile(new URL('../src/internal-source-control-v27.js', import.meta.url), 'utf8');
-const research = await readFile(new URL('../api/research.ts', import.meta.url), 'utf8');
+const research = await readFile(new URL('../api/research-v28.js', import.meta.url), 'utf8');
+const researchEntry = await readFile(new URL('../api/research.ts', import.meta.url), 'utf8');
 const release = await readFile(new URL('../src/release-v193.js', import.meta.url), 'utf8');
 const controlPath=fileURLToPath(new URL('../src/internal-source-control-v27.js', import.meta.url));
 const syntax=spawnSync(process.execPath,['--check',controlPath],{encoding:'utf8'});
@@ -52,6 +53,7 @@ const controlBoot=release.indexOf('installInternalSourceControl');
 const multiBoot=release.indexOf('installMultiSourceOrchestrator');
 assert.ok(controlBoot>=0&&multiBoot>controlBoot,'source-consent UI must initialize before multisource router');
 
+assert.match(researchEntry,/import v30 from '\.\/research-v30\.js'/,'public research endpoint must route through v3.0 entry');
 const geminiCall=research.indexOf('const grounded=await geminiGrounded');
 const fallbackCall=research.indexOf('const fallback=await publicExtractive');
 assert.ok(geminiCall>=0&&fallbackCall>geminiCall,'Gemini must be attempted before public fallback');
@@ -60,4 +62,4 @@ assert.match(research,/const driveContext=useInternal \? suppliedContext : \[\]/
 assert.match(research,/INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/,'server must audit rejected internal context');
 assert.match(research,/tools:\[\{google_search:\{\}\}\]/,'Gemini must use Google Search grounding');
 
-console.log('multisource-orchestrator-v27: Gemini-first + opt-in internal sources + production activation PASS');
+console.log('multisource-orchestrator-v30: Gemini-first + v3.0 entry + opt-in internal sources PASS');
