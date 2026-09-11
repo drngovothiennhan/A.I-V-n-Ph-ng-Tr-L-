@@ -29,26 +29,56 @@ async function probeGemini() {
     headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
-      generationConfig: {
-        maxOutputTokens: 256,
-        thinkingConfig: { thinkingLevel: 'low' }
-      }
+      generationConfig: { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: 'low' } }
     }),
     signal: AbortSignal.timeout(15000)
   });
-  if (!response.ok) {
-    return { pass: false, configured: true, model, status: response.status, reason: 'GEMINI_UPSTREAM_REJECTED' };
-  }
+  if (!response.ok) return { pass: false, configured: true, model, status: response.status, reason: 'GEMINI_UPSTREAM_REJECTED' };
   const data: any = await response.json();
   const candidate = data?.candidates?.[0] || {};
   const text = candidate?.content?.parts?.map((p: any) => p?.text || '').join('').trim() || '';
   return {
-    pass: Boolean(text),
+    pass: Boolean(text), configured: true, model, responseReceived: Boolean(text),
+    finishReason: candidate?.finishReason || null, promptBlocked: Boolean(data?.promptFeedback?.blockReason)
+  };
+}
+
+async function probeGeminiGrounding() {
+  const key = process.env.GEMINI_API_KEY || '';
+  const model = geminiModel();
+  if (!key) return { pass: false, configured: false, reason: 'GEMINI_API_KEY_MISSING', model };
+  const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: 'Dùng Google Search và trả lời ngắn: trang chủ chính thức của Bộ Y tế Việt Nam là gì?' }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { maxOutputTokens: 700 }
+    }),
+    signal: AbortSignal.timeout(22000)
+  });
+  if (!response.ok) {
+    return { pass: false, configured: true, model, status: response.status, reason: 'GEMINI_GROUNDING_REJECTED' };
+  }
+  const data: any = await response.json();
+  const candidate = data?.candidates?.[0] || {};
+  const text = candidate?.content?.parts?.map((p: any) => p?.text || '').join('').trim() || '';
+  const chunks = candidate?.groundingMetadata?.groundingChunks || [];
+  const domains = chunks.map((chunk: any) => {
+    try { return new URL(chunk?.web?.uri || '').hostname.toLowerCase(); } catch { return ''; }
+  }).filter(Boolean);
+  return {
+    pass: Boolean(text && chunks.length),
     configured: true,
     model,
     responseReceived: Boolean(text),
+    groundingSourceCount: chunks.length,
+    searchQueries: candidate?.groundingMetadata?.webSearchQueries || [],
+    domains: domains.slice(0,8),
     finishReason: candidate?.finishReason || null,
-    promptBlocked: Boolean(data?.promptFeedback?.blockReason)
+    promptBlocked: Boolean(data?.promptFeedback?.blockReason),
+    reason: text && chunks.length ? null : 'GEMINI_GROUNDING_NO_SOURCES'
   };
 }
 
@@ -112,7 +142,6 @@ async function probeXiaozhi() {
         socket.send(JSON.stringify({ type: 'status' }));
       } catch {}
     });
-
     socket.on('message', data => {
       let msg: any = null;
       try { msg = JSON.parse(data.toString()); } catch { return; }
@@ -128,23 +157,13 @@ async function probeXiaozhi() {
         sessionIdReceived: Boolean(msg.sessionId || msg.session_id)
       });
     });
-
     socket.once('unexpected-response', (_req, response) => done({
-      ...base,
-      pass: false,
-      gatewayReachable: false,
-      upstreamConnected: false,
-      mode: 'render-direct-wss',
-      status: response.statusCode,
-      reason: 'XIAOZHI_HANDSHAKE_REJECTED'
+      ...base, pass: false, gatewayReachable: false, upstreamConnected: false,
+      mode: 'render-direct-wss', status: response.statusCode, reason: 'XIAOZHI_HANDSHAKE_REJECTED'
     }));
     socket.once('error', () => done({
-      ...base,
-      pass: false,
-      gatewayReachable: false,
-      upstreamConnected: false,
-      mode: 'render-direct-wss',
-      reason: 'XIAOZHI_CONNECTION_FAILED'
+      ...base, pass: false, gatewayReachable: false, upstreamConnected: false,
+      mode: 'render-direct-wss', reason: 'XIAOZHI_CONNECTION_FAILED'
     }));
   });
 }
@@ -178,10 +197,11 @@ export default async function handler(req: any, res: any) {
 
   if (probe === 'config') return json(res, 200, config);
   if (probe === 'gemini') return json(res, 200, { ...config, probe: { gemini: await probeGemini() } });
+  if (probe === 'gemini-grounding') return json(res, 200, { ...config, probe: { geminiGrounding: await probeGeminiGrounding() } });
   if (probe === 'xiaozhi') return json(res, 200, { ...config, probe: { xiaozhi: await probeXiaozhi() } });
   if (probe === 'all') {
-    const [gemini, xiaozhi] = await Promise.all([probeGemini(), probeXiaozhi()]);
-    return json(res, 200, { ...config, probe: { gemini, xiaozhi } });
+    const [gemini, geminiGrounding, xiaozhi] = await Promise.all([probeGemini(), probeGeminiGrounding(), probeXiaozhi()]);
+    return json(res, 200, { ...config, probe: { gemini, geminiGrounding, xiaozhi } });
   }
-  return json(res, 400, { error: 'INVALID_PROBE', allowed: ['config', 'gemini', 'xiaozhi', 'all'] });
+  return json(res, 400, { error: 'INVALID_PROBE', allowed: ['config', 'gemini', 'gemini-grounding', 'xiaozhi', 'all'] });
 }
