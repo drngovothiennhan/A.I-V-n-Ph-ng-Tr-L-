@@ -17,7 +17,7 @@ const release=await readFile(new URL('../src/release-v193.js',import.meta.url),'
 
 assert.match(source,/3\.6\.0-unified-operations-center/);
 assert.match(source,/const TASK_KEY='ai-office-tasks-v11'/,'Task Center must read the real task store');
-assert.match(source,/task\.progressMode==='measured'/,'percent progress must require an explicit measured marker');
+assert.match(source,/task\?\.progressMode==='measured'/,'percent progress must require an explicit measured marker');
 assert.doesNotMatch(source,/progressMode\s*!==\s*'measured'[\s\S]{0,80}%/,'unmeasured task progress must not be rendered as a fake percentage');
 assert.match(source,/AIOfficeGlobalCancelV33\?\.cancel\?\.\('task'\)/,'Task Center cancel must reuse global cancellation');
 assert.match(source,/AIOfficeV22\?\.handleMessage\?\./,'retry must re-enter the canonical interaction runtime');
