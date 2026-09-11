@@ -25,7 +25,7 @@ function groundedImageModel() {
 async function probeVoiceRender() {
   try {
     const response = await fetch(VOICE_RENDER_HEALTH, {
-      headers: { 'user-agent': 'AI-Office-Health/2.4' },
+      headers: { 'user-agent': 'AI-Office-Health/2.5' },
       cache: 'no-store',
       signal: AbortSignal.timeout(5000)
     });
@@ -57,9 +57,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
 
-  const driveRuntimeConfigured = Boolean(process.env.DRIVE_BRAIN_BRIDGE_URL && process.env.DRIVE_BRAIN_TOKEN);
+  const driveBridgeConfigured = Boolean(process.env.DRIVE_BRAIN_BRIDGE_URL && process.env.DRIVE_BRAIN_TOKEN);
+  const driveServiceAccountConfigured = Boolean(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const driveRuntimeConfigured = driveBridgeConfigured || driveServiceAccountConfigured;
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
   const voiceRender = await probeVoiceRender();
+  const driveProviders = [
+    ...(driveBridgeConfigured ? ['apps-script-bridge'] : []),
+    ...(driveServiceAccountConfigured ? ['service-account-readonly'] : [])
+  ];
 
   const providers = {
     local: { configured: true, mode: 'safe-fallback', costTier: 'zero-model' },
@@ -95,7 +101,11 @@ export default async function handler(req, res) {
     },
     googleDriveRuntime: {
       configured: driveRuntimeConfigured,
-      mode: 'canonical-knowledge',
+      mode: 'canonical-knowledge-multi-provider',
+      activeProviders: driveProviders,
+      providerPriority: ['apps-script-bridge', 'service-account-readonly'],
+      serviceAccountReadonly: true,
+      localFallbackAllowed: false,
       registryVersion: DRIVE_BRAIN_REGISTRY.version,
       rootId: DRIVE_BRAIN_REGISTRY.root.id,
       productionReadableScopes: [...DRIVE_BRAIN_REGISTRY.productionReadableScopes],
@@ -114,14 +124,16 @@ export default async function handler(req, res) {
     knowledgeRouter: '2.0-unified-source-policy',
     interaction: '2.2-voice-action-orchestrator',
     voiceRuntime: '2.3-render-xiaozhi-direct',
+    driveRuntime: '2.5-multi-provider-readonly-fallback',
     productCompletion: '2.4-summary-file-image-delivery',
     dashboard: 'v1.5-approved-design',
     brain: {
       approvedOnly: true,
       localUploadRequired: false,
-      localUploadRole: 'optional-supplement',
+      localUploadRole: 'optional-explicit-supplement',
       driveCanonical: true,
       driveRuntimeConfigured,
+      driveProviderPriority: providers.googleDriveRuntime.providerPriority,
       driveRegistryVersion: DRIVE_BRAIN_REGISTRY.version,
       groundTruthScope: DRIVE_BRAIN_REGISTRY.approvalPolicy.groundTruthScope,
       blockedProductionScopes: ['00_INBOX', '07_ARCHIVE'],
@@ -161,19 +173,14 @@ export default async function handler(req, res) {
       clientIngest: ['docx','xlsx','pptx','csv','tsv','txt','md'],
       approvedDataCompare: true,
       defaultTaskOutputs: {
-        admin: 'docx',
-        general: 'docx',
-        research: 'docx',
-        tech: 'docx',
-        data: 'xlsx',
-        presentation: 'pptx',
-        image: 'png'
+        admin: 'docx', general: 'docx', research: 'docx', tech: 'docx', data: 'xlsx', presentation: 'pptx', image: 'png'
       }
     },
     quality: {
       qaGate: true,
       businessWorkflowRegression: true,
       driveRegistryRegression: true,
+      driveMultiProviderRegression: true,
       officeRoundTripRegression: true,
       dependencyAudit: '0-known-npm-vulnerabilities-at-build',
       noSimulatedProgress: true,
@@ -199,20 +206,16 @@ export default async function handler(req, res) {
       browserFallback: true
     },
     setup: {
-      gemini: {
-        ready: providers.gemini.configured,
-        requiredSecrets: ['GEMINI_API_KEY']
-      },
+      gemini: { ready: providers.gemini.configured, requiredSecrets: ['GEMINI_API_KEY'] },
       drive: {
         ready: driveRuntimeConfigured,
-        requiredRuntime: ['DRIVE_BRAIN_BRIDGE_URL', 'DRIVE_BRAIN_TOKEN'],
-        bridgeSource: 'integrations/google-apps-script/DriveBrainBridge.gs'
+        providerPriority: providers.googleDriveRuntime.providerPriority,
+        alternatives: [
+          { mode: 'apps-script-bridge', requiredRuntime: ['DRIVE_BRAIN_BRIDGE_URL', 'DRIVE_BRAIN_TOKEN'], bridgeSource: 'integrations/google-apps-script/DriveBrainBridge.gs' },
+          { mode: 'service-account-readonly', requiredRuntime: ['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'], manualPermission: 'Share A.I Văn phòng root folder with the service-account client_email as Viewer' }
+        ]
       },
-      xiaozhi: {
-        ready: providers.xiaozhi.runtimeReady,
-        requiredRuntime: [],
-        optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID']
-      }
+      xiaozhi: { ready: providers.xiaozhi.runtimeReady, requiredRuntime: [], optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID'] }
     },
     providers,
     voiceRenderProbe: voiceRender,
