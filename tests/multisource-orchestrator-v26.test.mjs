@@ -57,8 +57,8 @@ assert.match(researchEntry,/import v30 from '\.\/research-v30\.js'/,'public rese
 const geminiCall=research.indexOf('const grounded=await geminiGrounded');
 const fallbackCall=research.indexOf('const fallback=await publicExtractive');
 assert.ok(geminiCall>=0&&fallbackCall>geminiCall,'Gemini must be attempted before public fallback');
-assert.match(research,/const useInternal=req\.body\?\.useInternal === true/,'server must require explicit useInternal=true');
-assert.match(research,/const driveContext=useInternal \? suppliedContext : \[\]/,'server must discard internal context without consent');
+assert.match(research,/const\s+useInternal\s*=\s*req\.body\?\.useInternal\s*===\s*true/,'server must require explicit useInternal=true');
+assert.match(research,/const\s+driveContext\s*=\s*useInternal\s*\?\s*suppliedContext\s*:\s*\[\]/,'server must discard internal context without consent');
 assert.match(research,/INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/,'server must audit rejected internal context');
 assert.match(research,/tools:\[\{google_search:\{\}\}\]/,'Gemini must use Google Search grounding');
 
