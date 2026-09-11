@@ -203,7 +203,7 @@ async function resolveFolderScope(folderId, token, depth = 0) {
   if (!folderId || depth > 8) return '';
   if (folderScopeCache.has(folderId)) return folderScopeCache.get(folderId);
   for (const scope of DRIVE_BRAIN_REGISTRY.productionReadableScopes) {
-    if (DRIVE_BRAIN_REGISTRY.scopes[scope]?.id === folderId) {
+    if (DRIVE_BRAIN_REGISTRY.scopes[scope] === folderId) {
       folderScopeCache.set(folderId, scope);
       return scope;
     }
@@ -326,7 +326,7 @@ async function serviceList(payload, token) {
   const limit = Math.min(20, Math.max(1, Number(payload.limit) || 8));
   const items = [];
   for (const scope of scopes) {
-    const folderId = DRIVE_BRAIN_REGISTRY.scopes[scope]?.id;
+    const folderId = DRIVE_BRAIN_REGISTRY.scopes[scope];
     if (!folderId) continue;
     await collectServiceFolder(folderId, scope, token, items, limit, 0);
     if (items.length >= limit) break;
