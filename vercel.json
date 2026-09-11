@@ -8,6 +8,7 @@
     "XIAOZHI_PROTOCOL_VERSION": "1"
   },
   "rewrites": [
+    { "source": "/api/research", "destination": "/api/research-v28" },
     { "source": "/", "destination": "/api/app" },
     { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
     { "source": "/sw.js", "destination": "/api/asset?path=public/sw.js" },
