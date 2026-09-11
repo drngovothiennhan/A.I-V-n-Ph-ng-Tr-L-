@@ -1,4 +1,5 @@
 const RELEASE = '1.9.3';
+const AI_CORE = '3.2';
 const KNOWLEDGE_ROUTER = '2.7';
 const INTERACTION_CONTROL = '2.2';
 const WEATHER_BRIDGE = '2.1';
@@ -16,7 +17,7 @@ function syncReleaseLabels() {
   const brandSmall = document.querySelector('.brand small');
   if (brandSmall) brandSmall.textContent = `Autonomous Office Orchestrator · v${RELEASE}`;
   const footer = document.querySelector('.footer');
-  if (footer) footer.textContent = `A.I VĂN PHÒNG · ${RELEASE} · SOURCE ROUTER ${KNOWLEDGE_ROUTER} · INTERNAL ${INTERNAL_SOURCE_CONTROL} · MULTISOURCE ${MULTISOURCE_ORCHESTRATOR} · SAFETY ${RESEARCH_SAFETY} · INTERACTION ${INTERACTION_CONTROL} · VOICE ${VOICE_RENDER_BRIDGE} · TURN ${VOICE_TURN_COORDINATOR} · RUNTIME ${CREDENTIALS_RUNTIME} · PRODUCT ${PRODUCT_COMPLETION} · Dashboard v1.5 approved`;
+  if (footer) footer.textContent = `A.I VĂN PHÒNG · ${RELEASE} · AI CORE ${AI_CORE} · SOURCE ROUTER ${KNOWLEDGE_ROUTER} · INTERNAL ${INTERNAL_SOURCE_CONTROL} · MULTISOURCE ${MULTISOURCE_ORCHESTRATOR} · SAFETY ${RESEARCH_SAFETY} · INTERACTION ${INTERACTION_CONTROL} · VOICE ${VOICE_RENDER_BRIDGE} · TURN ${VOICE_TURN_COORDINATOR} · RUNTIME ${CREDENTIALS_RUNTIME} · PRODUCT ${PRODUCT_COMPLETION} · Dashboard v1.5 approved`;
   const status = document.querySelector('#v19Status');
   if (status && /^v1\.9\.2\b/.test(status.textContent || '')) {
     status.textContent = (status.textContent || '').replace(/^v1\.9\.2\b/, `v${RELEASE}`);
@@ -25,6 +26,10 @@ function syncReleaseLabels() {
 
 async function bootKnowledgeRouter() {
   try {
+    // Canonical intent contract initializes first; existing v1.9/v2.x behavior remains the execution engine.
+    const aiCore = await import('./ai-orchestrator-core-v32.js?v=320');
+    aiCore.installAICoreOrchestrator?.();
+
     // Install the explicit source-consent UI before any router can derive source policy.
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
     sourceControl.installInternalSourceControl?.();
@@ -58,6 +63,7 @@ setTimeout(syncReleaseLabels, 0);
 setTimeout(syncReleaseLabels, 250);
 setTimeout(bootKnowledgeRouter, 0);
 window.AIOfficeRelease = RELEASE;
+window.AIOfficeAICoreVersion = AI_CORE;
 window.AIOfficeKnowledgeRouterVersion = KNOWLEDGE_ROUTER;
 window.AIOfficeInternalSourceControlVersion = INTERNAL_SOURCE_CONTROL;
 window.AIOfficeMultiSourceVersion = MULTISOURCE_ORCHESTRATOR;

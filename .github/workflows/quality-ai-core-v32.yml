@@ -1,0 +1,28 @@
+name: AI Core Intent Contract QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/ai-orchestrator-core-v32.js'
+      - 'src/interaction-policy-v22.js'
+      - 'src/release-v193.js'
+      - 'tests/ai-orchestrator-core-v32.test.mjs'
+      - '.github/workflows/quality-ai-core-v32.yml'
+  workflow_dispatch:
+
+jobs:
+  canonical-intent-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax checks
+        run: |
+          node --check src/ai-orchestrator-core-v32.js
+          node --check src/release-v193.js
+          node --check tests/ai-orchestrator-core-v32.test.mjs
+      - name: Canonical intent regression
+        run: node tests/ai-orchestrator-core-v32.test.mjs
