@@ -79,54 +79,84 @@ function includesAny(n, list) {
   return list.some(x => n.includes(normalizeText(x)));
 }
 
+export function internalSourceOptIn(baseIntent={}) {
+  if (baseIntent?.useInternal === true || baseIntent?.internalOptIn === true) return true;
+  try {
+    return typeof window !== 'undefined' && window.AIOfficeSourcePreferences?.useInternal === true;
+  } catch {
+    return false;
+  }
+}
+
 export function classifySourcePolicy(text='', baseIntent={}) {
   const raw = String(text || '').trim();
   const n = normalizeText(raw);
   const direct = directRuntimeAnswer(raw);
   const question = looksLikeQuestion(raw) || baseIntent?.kind === 'question';
-  const internal = includesAny(n, INTERNAL_HINTS);
+  const internalRequested = includesAny(n, INTERNAL_HINTS);
+  const internalOptIn = internalSourceOptIn(baseIntent);
   const adminHint = includesAny(n, ADMIN_DOC_HINTS);
   const medical = includesAny(n, MEDICAL_HINTS);
   const research = includesAny(n, RESEARCH_HINTS);
   const explicitWeb = /\b(internet|web|truc tuyen|nguon ngoai|nguon mo|google|tim tren mang)\b/.test(n);
 
   if (direct) {
-    return { mode:'direct_runtime', question:true, useDrive:false, useWeb:false, directAnswer:direct, priority:['runtime'] };
+    return {
+      mode:'direct_runtime', question:true, useDrive:false, useInternal:false, useWeb:false,
+      internalOptIn:false, internalRequested:false, directAnswer:direct, priority:['runtime']
+    };
   }
   if (baseIntent?.kind === 'data') {
-    return { mode:'data_task', question:false, useDrive:false, useWeb:false, priority:['provided_data'] };
+    return {
+      mode:'data_task', question:false, useDrive:false, useInternal:false, useWeb:false,
+      internalOptIn:false, internalRequested:false, priority:['provided_data']
+    };
   }
   if (baseIntent?.kind === 'admin' && !question) {
     return {
-      mode:'admin_document', question:false, useDrive:true, useWeb:true, officialOnly:true,
-      priority:['drive_template_approved','drive_approved','official_web','reasoning']
+      mode:'admin_document', question:false, useDrive:internalOptIn, useInternal:internalOptIn, useWeb:true,
+      internalOptIn, internalRequested, officialOnly:true,
+      priority: internalOptIn
+        ? ['gemini_google_search','drive_template_approved','drive_approved','official_web','reasoning']
+        : ['gemini_google_search','official_web','reasoning']
     };
   }
-  if (question && internal) {
+  if (question && internalRequested) {
     return {
       mode: adminHint ? 'internal_admin_question' : 'internal_question',
-      question:true, useDrive:true, useWeb: explicitWeb || research || adminHint, officialOnly: adminHint,
-      priority: adminHint ? ['drive_approved','drive_templates','official_web'] : ['drive_approved','drive_knowledge','web_if_needed']
+      question:true, useDrive:internalOptIn, useInternal:internalOptIn, useWeb:true,
+      internalOptIn, internalRequested:true, internalBlocked:!internalOptIn, officialOnly:adminHint,
+      priority: internalOptIn
+        ? ['gemini_google_search','drive_approved','drive_templates','drive_knowledge','official_web']
+        : ['gemini_google_search','public_web']
     };
   }
   if (question && medical) {
     return {
-      mode:'medical_question', question:true, useDrive:internal, useWeb:true, officialOnly:false,
-      priority:['pubmed','who','moh','web','drive_if_requested']
+      mode:'medical_question', question:true, useDrive:internalOptIn, useInternal:internalOptIn, useWeb:true,
+      internalOptIn, internalRequested:false, officialOnly:false,
+      priority: internalOptIn
+        ? ['gemini_google_search','pubmed','who','moh','drive_approved']
+        : ['gemini_google_search','pubmed','who','moh']
     };
   }
   if (question || baseIntent?.kind === 'research') {
     return {
       mode: research ? 'research_question' : 'general_question', question:true,
-      useDrive:false, useWeb:true, officialOnly:false,
-      priority:['external_reasoning','web','drive_only_if_explicit']
+      useDrive:internalOptIn, useInternal:internalOptIn, useWeb:true,
+      internalOptIn, internalRequested:false, officialOnly:false,
+      priority: internalOptIn
+        ? ['gemini_google_search','drive_approved','drive_knowledge','external_reasoning']
+        : ['gemini_google_search','external_reasoning']
     };
   }
   return {
     mode: baseIntent?.kind || 'general_task', question:false,
-    useDrive: Boolean(baseIntent?.kind === 'admin'),
-    useWeb: Boolean(baseIntent?.kind === 'research' || explicitWeb),
-    officialOnly: Boolean(baseIntent?.kind === 'admin'), priority:['task_context','reasoning']
+    useDrive:internalOptIn, useInternal:internalOptIn,
+    useWeb:Boolean(baseIntent?.kind === 'research' || explicitWeb),
+    internalOptIn, internalRequested,
+    officialOnly:Boolean(baseIntent?.kind === 'admin'),
+    priority: internalOptIn ? ['task_context','drive_if_relevant','reasoning'] : ['task_context','reasoning']
   };
 }
 
@@ -135,7 +165,7 @@ export function smartIntent(text='', baseClassifier, context={}) {
   if (looksLikeQuestion(text)) {
     return {
       ...base, kind:'question', action:'answer', userWantsFile:false, artifactFormats:[], irreversible:false,
-      confidence:Math.max(Number(base?.confidence || 0),0.97), correctedBy:'question-first-v20'
+      confidence:Math.max(Number(base?.confidence || 0),0.97), correctedBy:'question-first-v27'
     };
   }
   return base;
@@ -153,10 +183,10 @@ export function rankSources(query='', sources=[], policy={}) {
       const domain = String(source?.domain || source?.url || '').toLowerCase();
       if (/drive/.test(kind) && policy?.useDrive) score += 2.5;
       if (/approved/.test(String(source?.approvalState || '').toLowerCase())) score += 2.5;
-      if (/template/.test(kind) && policy?.mode === 'admin_document') score += 3;
+      if (/template/.test(kind) && policy?.mode === 'admin_document' && policy?.useDrive) score += 3;
       if (/pubmed|who\.int|moh\.gov\.vn/.test(domain) && policy?.mode === 'medical_question') score += 3;
       if (/vbpl\.vn|vanban\.chinhphu\.vn|chinhphu\.vn|\.gov\.vn/.test(domain) && policy?.officialOnly) score += 3;
-      if (/web|scholarly|official/.test(kind) && policy?.useWeb) score += 1;
+      if (/grounded-web|web|scholarly|official/.test(kind) && policy?.useWeb) score += 1;
       return { ...source, text: clean.slice(0,5000), _score:score, _index:index };
     })
     .filter(s => s.text || s.title)
@@ -164,10 +194,20 @@ export function rankSources(query='', sources=[], policy={}) {
 }
 
 export function sourcePolicyLabel(policy={}) {
+  if (policy?.internalOptIn) {
+    if (policy?.mode === 'admin_document') return 'Gemini Search + tài liệu nội bộ đã bật';
+    if (policy?.mode === 'medical_question') return 'Gemini Search + nội bộ + nguồn y khoa';
+    return 'Gemini Search + tài liệu nội bộ';
+  }
   const map = {
-    direct_runtime:'Runtime trực tiếp', general_question:'Web độc lập', research_question:'Research đa nguồn',
-    internal_question:'Drive ưu tiên', internal_admin_question:'Drive + nguồn chính thức',
-    medical_question:'Nguồn y khoa ưu tiên', admin_document:'Mẫu Drive + nguồn chính thức', data_task:'Dữ liệu được giao'
+    direct_runtime:'Runtime trực tiếp',
+    general_question:'Gemini Search mặc định',
+    research_question:'Gemini Search đa nguồn',
+    internal_question:'Gemini Search · nội bộ đang tắt',
+    internal_admin_question:'Gemini Search · nội bộ đang tắt',
+    medical_question:'Gemini Search + nguồn y khoa',
+    admin_document:'Gemini Search + nguồn chính thức',
+    data_task:'Dữ liệu được giao'
   };
-  return map[policy?.mode] || 'Điều phối theo ngữ cảnh';
+  return map[policy?.mode] || 'Gemini Search mặc định';
 }
