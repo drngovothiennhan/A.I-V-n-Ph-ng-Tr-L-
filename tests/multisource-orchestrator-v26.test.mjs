@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const source = await readFile(new URL('../src/multisource-orchestrator-v26.js', import.meta.url), 'utf8');
 const control = await readFile(new URL('../src/internal-source-control-v27.js', import.meta.url), 'utf8');
 const research = await readFile(new URL('../api/research.ts', import.meta.url), 'utf8');
+const release = await readFile(new URL('../src/release-v193.js', import.meta.url), 'utf8');
 const controlPath=fileURLToPath(new URL('../src/internal-source-control-v27.js', import.meta.url));
 const syntax=spawnSync(process.execPath,['--check',controlPath],{encoding:'utf8'});
 assert.equal(syntax.status,0,`internal source control syntax error: ${syntax.stderr||syntax.stdout}`);
@@ -44,6 +45,13 @@ assert.match(control,/localStorage\.getItem\(KEY\)==='1'/,'absence of preference
 assert.match(control,/Dùng tài liệu nội bộ/,'UI must expose a clear internal-source toggle');
 assert.match(control,/Gemini Search mặc định/,'UI must disclose the default search provider');
 
+assert.match(release,/internal-source-control-v27\.js\?v=270/,'production release chain must load internal source control');
+assert.match(release,/sourceControl\.installInternalSourceControl\?\.\(\)/,'production release chain must activate internal source control');
+assert.match(release,/multisource-orchestrator-v26\.js\?v=270/,'production release chain must load v2.7 multisource router');
+const controlBoot=release.indexOf('installInternalSourceControl');
+const multiBoot=release.indexOf('installMultiSourceOrchestrator');
+assert.ok(controlBoot>=0&&multiBoot>controlBoot,'source-consent UI must initialize before multisource router');
+
 const geminiCall=research.indexOf('const grounded=await geminiGrounded');
 const fallbackCall=research.indexOf('const fallback=await publicExtractive');
 assert.ok(geminiCall>=0&&fallbackCall>geminiCall,'Gemini must be attempted before public fallback');
@@ -52,4 +60,4 @@ assert.match(research,/const driveContext=useInternal \? suppliedContext : \[\]/
 assert.match(research,/INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/,'server must audit rejected internal context');
 assert.match(research,/tools:\[\{google_search:\{\}\}\]/,'Gemini must use Google Search grounding');
 
-console.log('multisource-orchestrator-v27: Gemini-first + opt-in internal sources PASS');
+console.log('multisource-orchestrator-v27: Gemini-first + opt-in internal sources + production activation PASS');
