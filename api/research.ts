@@ -59,9 +59,7 @@ function relevance(query, source) {
   const text = normalize(source?.text || '');
   const matched = terms.filter(term => title.includes(term) || text.includes(term));
   let score = matched.length;
-  for (const term of terms) {
-    if (title.includes(term)) score += 2;
-  }
+  for (const term of terms) if (title.includes(term)) score += 2;
   for (let i=0;i<terms.length-1;i++) {
     const phrase = `${terms[i]} ${terms[i+1]}`;
     if (title.includes(phrase)) score += 5;
@@ -82,19 +80,12 @@ function modelForRequest(query, mode, officialOnly, driveContext=[]) {
   const primary = complexRequest(query, mode, officialOnly, driveContext);
   return { model: primary ? primaryModel() : economyModel(), costTier: primary ? 'reasoning' : 'economy' };
 }
-function publicFirstEligible(query, mode, officialOnly, driveContext=[]) {
-  if (officialOnly || driveContext.length || medicalMode(mode, query)) return false;
-  if (query.length > 180) return false;
-  if (/\b(hôm nay|hiện nay|mới nhất|vừa|giá|tỷ giá|thời tiết|lịch|2026|current|latest|today|now)\b/i.test(query)) return false;
-  return /^(ai|gì|nào|thế nào|giải thích|cho tôi biết|what|who|define|explain)\b/i.test(query.trim()) || /\b(là gì|nghĩa là gì)\b/i.test(query);
-}
 
 async function fetchJson(url, timeout=9000) {
-  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.5'}, signal:AbortSignal.timeout(timeout) });
+  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.7'}, signal:AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(`UPSTREAM_${response.status}`);
   return response.json();
 }
-
 async function wiki(query, lang='vi') {
   try {
     const u = new URL(`https://${lang}.wikipedia.org/w/api.php`);
@@ -125,7 +116,6 @@ async function pubmed(query) {
     return ids.map(id => { const p=data?.result?.[id] || {}; return {kind:'scholarly',source:'PubMed',title:p.title || `PubMed ${id}`,url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,domain:'pubmed.ncbi.nlm.nih.gov',text:stripMarkup([p.title,p.fulljournalname,p.pubdate].filter(Boolean).join('. '))}; });
   } catch { return []; }
 }
-
 function extractive(query, sources) {
   const terms = semanticTerms(query);
   const picked=[];
@@ -143,7 +133,6 @@ function extractive(query, sources) {
   }
   return picked.join(' ');
 }
-
 async function publicExtractive(query, mode, officialOnly) {
   const jobs=[wiki(query,'vi'),duck(query),wiki(query,'en')];
   if (medicalMode(mode,query)) jobs.unshift(pubmed(query));
@@ -157,16 +146,33 @@ async function publicExtractive(query, mode, officialOnly) {
   return { sources, answer:extractive(query,sources) };
 }
 
-async function geminiGrounded(query, mode, officialOnly, driveContext=[]) {
+async function geminiGrounded(query, mode, officialOnly, driveContext=[], useInternal=false) {
   const key = process.env.GEMINI_API_KEY || '';
   if (!key) return null;
-  const route = modelForRequest(query, mode, officialOnly, driveContext);
-  const domainHint = officialOnly ? `Ưu tiên và kiểm chứng nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.` : medicalMode(mode,query) ? 'Ưu tiên nguồn y khoa đáng tin cậy như PubMed, WHO và Bộ Y tế; với khuyến cáo cho người dân Việt Nam ưu tiên Bộ Y tế.' : '';
+  const safeContext = useInternal && Array.isArray(driveContext) ? driveContext.slice(0,6) : [];
+  const route = modelForRequest(query, mode, officialOnly, safeContext);
+  const domainHint = officialOnly
+    ? `Ưu tiên và kiểm chứng nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.`
+    : medicalMode(mode,query)
+      ? 'Ưu tiên nguồn y khoa đáng tin cậy như PubMed, WHO và Bộ Y tế; với khuyến cáo cho người dân Việt Nam ưu tiên Bộ Y tế.'
+      : '';
   const maxContext = route.costTier === 'economy' ? 12000 : MAX_CONTEXT;
-  const context = (Array.isArray(driveContext) ? driveContext : []).map((s,i)=>`[DRIVE-${i+1}] ${clean(s?.title,180)}\n${clean(s?.text,4500)}`).join('\n\n').slice(0,maxContext);
-  const prompt = `Bạn là Trưởng phòng A.I. Trả lời câu hỏi bằng tiếng Việt, chính xác, bám sát câu hỏi và đủ ý. Bắt buộc dùng Google Search khi câu hỏi liên quan y tế, nguồn chính thức, dữ kiện hiện hành hoặc khi cần kiểm chứng. ${domainHint}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Không ghép thông tin không liên quan. Nếu không tìm thấy nguồn đủ liên quan, hãy nói rõ chưa đủ căn cứ thay vì suy đoán. Drive context chỉ là ngữ cảnh nội bộ; dữ kiện hiện hành phải kiểm chứng web khi phù hợp.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nDRIVE CONTEXT:\n${context}`;
+  const context = safeContext.map((s,i)=>`[INTERNAL-${i+1}] ${clean(s?.title,180)}\n${clean(s?.text,4500)}`).join('\n\n').slice(0,maxContext);
+  const sourceRule = useInternal
+    ? 'Người dùng đã bật tài liệu nội bộ. Hãy dùng Google Search làm nguồn công khai chính, đồng thời đối chiếu INTERNAL CONTEXT. Nêu rõ nếu nội bộ và nguồn công khai khác nhau; không coi nội bộ là đúng nếu bằng chứng web đáng tin cậy mâu thuẫn.'
+    : 'Người dùng chưa bật tài liệu nội bộ. Tuyệt đối không suy đoán, yêu cầu hoặc sử dụng Drive/local/internal context; chỉ dùng Google Search và kiến thức mô hình để tổng hợp.';
+  const prompt = `Bạn là Trưởng phòng A.I của A.I Văn phòng Trợ lý. Trả lời bằng tiếng Việt, trực tiếp, chính xác, bám sát ngữ cảnh và ưu tiên tốc độ. Mặc định phải dùng Google Search để tìm/kiểm chứng thông tin công khai. ${domainHint}\n${sourceRule}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Nếu không đủ căn cứ, nói rõ giới hạn. Khi có INTERNAL CONTEXT, chỉ dùng đoạn thực sự liên quan và phải đối chiếu với web trước khi kết luận.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nINTERNAL CONTEXT (${useInternal?'OPT-IN':'DISABLED'}):\n${useInternal ? context : ''}`;
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(route.model)}:generateContent`);
-  const response = await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{maxOutputTokens:route.costTier==='economy'?1600:3000}}),signal:AbortSignal.timeout(route.costTier==='economy'?18000:30000)});
+  const response = await fetch(endpoint,{
+    method:'POST',
+    headers:{'content-type':'application/json','x-goog-api-key':key},
+    body:JSON.stringify({
+      contents:[{role:'user',parts:[{text:prompt}]}],
+      tools:[{google_search:{}}],
+      generationConfig:{maxOutputTokens:route.costTier==='economy'?1600:3000}
+    }),
+    signal:AbortSignal.timeout(route.costTier==='economy'?18000:30000)
+  });
   if (!response.ok) {
     console.warn('gemini_grounding_rejected',{status:response.status,model:route.model});
     return null;
@@ -181,7 +187,15 @@ async function geminiGrounded(query, mode, officialOnly, driveContext=[]) {
     console.warn('gemini_grounding_insufficient',{model:route.model,sourceRequired,sourceCount:sources.length,finishReason:candidate?.finishReason || null});
     return null;
   }
-  return {provider:'gemini-google-search',model:route.model,costTier:route.costTier,answer,sources,grounded:true};
+  return {
+    provider:'gemini-google-search',
+    model:route.model,
+    costTier:route.costTier,
+    answer,
+    sources,
+    grounded:true,
+    sourceMode:useInternal?'gemini-web+internal-opt-in':'gemini-web-only'
+  };
 }
 
 export default async function handler(req,res) {
@@ -190,33 +204,37 @@ export default async function handler(req,res) {
   if (!query) return json(res,400,{error:'QUERY_REQUIRED'});
   const mode=clean(req.body?.mode,80) || 'general_question';
   const officialOnly=Boolean(req.body?.officialOnly) || officialIntent(query);
-  const driveContext=Array.isArray(req.body?.driveContext) ? req.body.driveContext.slice(0,6) : [];
+  const useInternal=req.body?.useInternal === true;
+  const suppliedContext=Array.isArray(req.body?.driveContext) ? req.body.driveContext.slice(0,6) : [];
+  const driveContext=useInternal ? suppliedContext : [];
+  const limitations=[];
+  if (!useInternal && suppliedContext.length) limitations.push('INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN');
+
   try {
-    if (publicFirstEligible(query,mode,officialOnly,driveContext)) {
-      const fast=await publicExtractive(query,mode,officialOnly);
-      if (fast.answer && fast.sources.length) {
-        return json(res,200,{configured:true,provider:'public-extractive',costTier:'zero-model',geminiConfigured:Boolean(process.env.GEMINI_API_KEY),primaryModel:primaryModel(),economyModel:economyModel(),answer:fast.answer,sources:fast.sources.slice(0,8),limitations:[]});
-      }
-    }
+    // Gemini + Google Search is the default synthesis path for every externally answerable query.
+    const grounded=await geminiGrounded(query,mode,officialOnly,driveContext,useInternal);
+    if (grounded) return json(res,200,{configured:true,...grounded,internalOptIn:useInternal,limitations});
 
-    const grounded=await geminiGrounded(query,mode,officialOnly,driveContext);
-    if (grounded) return json(res,200,{configured:true,...grounded});
-
+    // Deterministic public retrieval is fallback only when Gemini is unavailable or grounding fails.
     const fallback=await publicExtractive(query,mode,officialOnly);
     const safeAnswer=fallback.answer || '';
     return json(res,200,{
       configured:true,
-      provider:'public-extractive',
+      provider:'public-extractive-fallback',
       costTier:'zero-model',
       geminiConfigured:Boolean(process.env.GEMINI_API_KEY),
       primaryModel:primaryModel(),
       economyModel:economyModel(),
       answer:safeAnswer,
       sources:fallback.sources.slice(0,8),
-      limitations:safeAnswer?['Gemini grounding không khả dụng; câu trả lời chỉ dùng nguồn public đã vượt relevance gate.']:['Không có nguồn đủ liên quan để trả lời an toàn; hệ thống không tạo câu trả lời suy đoán.']
+      sourceMode:'public-fallback-no-internal',
+      internalOptIn:useInternal,
+      limitations:[...limitations,...(safeAnswer
+        ? ['Gemini grounding không khả dụng; câu trả lời dùng fallback public đã vượt relevance gate. Tài liệu nội bộ không được gửi sang fallback.']
+        : ['Không có nguồn đủ liên quan để trả lời an toàn; hệ thống không tạo câu trả lời suy đoán.'])]
     });
   } catch(error) {
-    console.error('research_v25_error',{message:String(error?.message || error).slice(0,220)});
+    console.error('research_v27_error',{message:String(error?.message || error).slice(0,220)});
     return json(res,502,{error:'RESEARCH_FAILED'});
   }
 }
