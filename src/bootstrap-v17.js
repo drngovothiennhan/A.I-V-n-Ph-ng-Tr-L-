@@ -1,16 +1,35 @@
-// Stable entrypoint retained for index.html compatibility.
-// Runtime modules are loaded sequentially so later policy layers cannot be present-but-inactive.
-const BOOT_CHAIN = [
-  './bootstrap-v18.js',
-  './knowledge-router-v20.js',
-  './interaction-runtime-v22.js',
-  './interaction-control-v21.js'
-];
+// Canonical production entrypoint retained for index.html compatibility.
+// All policy layers are activated here in deterministic order so no versioned module is merely present in source but inactive at runtime.
+const bootstrap = await import('./bootstrap-v18.js');
+void bootstrap;
 
-for (const modulePath of BOOT_CHAIN) {
-  await import(modulePath);
-}
+const sourceControl = await import('./internal-source-control-v27.js?v=270');
+sourceControl.installInternalSourceControl?.();
 
+await import('./knowledge-router-v20.js?v=270');
+
+const multiSource = await import('./multisource-orchestrator-v26.js?v=270');
+multiSource.installMultiSourceOrchestrator?.();
+
+const researchSafety = await import('./research-safety-guard-v263.js?v=263');
+researchSafety.installResearchSafetyGuard?.();
+
+const weather = await import('./weather-bridge-v21.js?v=211');
+await import('./interaction-runtime-v22.js?v=220');
+await import('./interaction-control-v21.js?v=211');
+await import('./credential-setup-v22.js?v=230');
+await import('./product-completion-v24.js?v=240');
+await import('./voice-render-bridge-v23.js?v=230');
+const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
+
+weather.patchVoice?.();
 window.AIOfficeV22?.attachAfterV21?.();
+voiceTurns.installVoiceTurnCoordinator?.();
+
+window.AIOfficeRelease='1.9.3';
+window.AIOfficeKnowledgeRouterVersion='2.7';
+window.AIOfficeMultiSourceVersion='2.7.0';
+window.AIOfficeInternalSourceControlVersion='2.7.0';
+
 const status=document.getElementById('v19Status');
-if(status) status.textContent='Interaction v2.2 · Voice/Intent/Action Orchestrator ON';
+if(status) status.textContent='Gemini-first · Nội bộ opt-in · Voice/Intent/Action ON';
