@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { classifyInteractionV22, routingPrefixV22 } from '../src/interaction-policy-v22.js';
 
 const q1=classifyInteractionV22('Báo cáo hành chính là gì?');
@@ -30,4 +33,19 @@ assert.equal(r.risk,'high');
 assert.equal(r.needsApproval,true);
 
 assert.match(routingPrefixV22('tech'),/phần mềm/i);
-console.log('interaction-policy-v22: ok');
+
+const runtimeUrl=new URL('../src/interaction-runtime-v22.js',import.meta.url);
+const runtime=await readFile(runtimeUrl,'utf8');
+const syntax=spawnSync(process.execPath,['--check',fileURLToPath(runtimeUrl)],{encoding:'utf8'});
+assert.equal(syntax.status,0,`interaction runtime syntax error: ${syntax.stderr||syntax.stdout}`);
+assert.match(runtime,/ai-orchestrator-core-v32\.js/,'interaction runtime must use the canonical AI core');
+assert.match(runtime,/ORCH_KEY='ai-office-orchestrator-context-v32'/,'runtime must keep bounded orchestration metadata separately');
+assert.match(runtime,/function rememberEnvelope\(/,'runtime must persist an orchestration checkpoint');
+assert.match(runtime,/task\.orchestrationId=envelope\?\.id/,'created tasks must carry their orchestration id');
+assert.match(runtime,/task\.intentV32=taskCanonicalMeta\(envelope\)/,'created tasks must carry canonical intent metadata');
+assert.match(runtime,/getLastEnvelope:\(\)=>lastEnvelope/,'runtime must expose the latest orchestration envelope for Task/AI Center inspection');
+assert.match(runtime,/channel:options\.source==='voice'\?'voice':'text'/,'voice and text must use the same orchestration envelope contract');
+assert.doesNotMatch(runtime,/input\s*:\s*envelope\.input/,'orchestration audit metadata must not copy raw input');
+assert.doesNotMatch(runtime,/chain[-_ ]?of[-_ ]?thought/i,'runtime audit must never log chain-of-thought');
+
+console.log('interaction-policy-v22: semantic routing + canonical runtime metadata PASS');

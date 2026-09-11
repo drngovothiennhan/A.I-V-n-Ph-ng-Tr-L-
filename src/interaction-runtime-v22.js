@@ -1,10 +1,12 @@
 import { filterRelevantSources, casualAnswer, cancellationIntent, isWeatherQuery } from './interaction-policy-v21.js';
 import { classifyInteractionV22, normalizeV22, routingPrefixV22 } from './interaction-policy-v22.js';
+import { classifyCanonicalIntent, createOrchestrationEnvelope } from './ai-orchestrator-core-v32.js';
 
-const VERSION='2.2-voice-action-orchestrator';
+const VERSION='2.2.1-canonical-orchestrator';
 const CHAT_KEY='ai-office-conversation-v19';
 const TASK_KEY='ai-office-tasks-v11';
 const VOICE_KEY='ai-office-voice-continuous-v19';
+const ORCH_KEY='ai-office-orchestrator-context-v32';
 const ACTIVE=new Set(['received','analyzing','planning','executing','verifying','delegated','processing','awaiting_input','awaiting_approval']);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const getJson=(key,fallback=[])=>{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
@@ -20,6 +22,7 @@ let attached=false;
 let requestId=0;
 let lastTranscript={text:'',at:0};
 let lastAssistant='';
+let lastEnvelope=null;
 let continuousVoice=localStorage.getItem(VOICE_KEY)==='1';
 
 async function waitRuntime(){
@@ -32,6 +35,48 @@ async function waitRuntime(){
 
 function saveTurn(role,text,meta={}){
   const h=getJson(CHAT_KEY,[]);h.push({role,text:strip(text).slice(0,8000),at:new Date().toISOString(),...meta});setJson(CHAT_KEY,h.slice(-30));
+}
+function rememberEnvelope(envelope){
+  if(!envelope?.id||!envelope?.intent)return;
+  lastEnvelope=envelope;
+  const recent=getJson(ORCH_KEY,[]);
+  recent.push({
+    id:envelope.id,
+    createdAt:envelope.createdAt,
+    type:envelope.intent.type,
+    confidence:envelope.intent.confidence,
+    risk:envelope.intent.risk,
+    sourceMode:envelope.route?.sourceMode||null,
+    provider:envelope.route?.provider||null,
+    artifactFormats:envelope.route?.artifactFormats||[],
+    approvalRequired:Boolean(envelope.route?.approvalRequired),
+    channel:envelope.intent.channel||'text'
+  });
+  setJson(ORCH_KEY,recent.slice(-40));
+  window.dispatchEvent(new CustomEvent('ai-office-orchestration-context',{detail:recent.at(-1)}));
+}
+function envelopeFor(text,interaction,options={}){
+  const internalOptIn=Boolean(window.AIOfficeSourcePreferences?.useInternal);
+  return createOrchestrationEnvelope(text,{
+    interaction,
+    hasActiveTask:hasActiveTask(),
+    internalOptIn,
+    channel:options.source==='voice'?'voice':'text',
+    currentTaskId:getJson(TASK_KEY,[]).find(t=>ACTIVE.has(t.status))?.id||null
+  });
+}
+function taskCanonicalMeta(envelope){
+  if(!envelope?.intent)return null;
+  return {
+    contractVersion:envelope.intent.contractVersion,
+    type:envelope.intent.type,
+    confidence:envelope.intent.confidence,
+    risk:envelope.intent.risk,
+    needsApproval:envelope.intent.needsApproval,
+    sourceMode:envelope.route?.sourceMode||null,
+    provider:envelope.route?.provider||null,
+    artifactFormats:envelope.route?.artifactFormats||[]
+  };
 }
 
 function hasActiveTask(){return getJson(TASK_KEY,[]).some(t=>ACTIVE.has(t.status))}
@@ -49,7 +94,7 @@ function injectUi(){
   const bar=document.createElement('div');bar.id='ai22State';bar.dataset.state='done';bar.innerHTML='<span class="dot"></span><span id="ai22StateText">Sẵn sàng</span><span id="ai22Intent">Auto · safe-by-default</span>';
   composer.insertAdjacentElement('afterend',bar);
   document.title='A.I Văn phòng · Voice Action Orchestrator v2.2';
-  const subtitle=document.querySelector('.sub');if(subtitle)subtitle.textContent='Voice State Machine · Semantic Intent · Source Router · Cancellable Workflow · QA Gate';
+  const subtitle=document.querySelector('.sub');if(subtitle)subtitle.textContent='Voice State Machine · Canonical Intent · Source Router · Cancellable Workflow · QA Gate';
 }
 
 function state(name,text,intent=''){
@@ -88,16 +133,17 @@ async function synthesizeQuestion(text,sources){
   return strictFallback(text,sources);
 }
 
-async function answerQuestion(text){
-  state('working','Đang chọn nguồn phù hợp…','Câu hỏi · source-grounded');
+async function answerQuestion(text,envelope=null){
+  state('working','Đang chọn nguồn phù hợp…',`${envelope?.intent?.type||'QUESTION'} · source-grounded`);
   const base={kind:'question',confidence:0.99,action:'answer'};
   const policy=router.classifySourcePolicy(text,base);
-  if(policy?.directAnswer){renderAnswer(policy.directAnswer,[],'Runtime trực tiếp');saveTurn('user',text,{intent:'question'});saveTurn('assistant',policy.directAnswer,{intent:'answer'});return policy.directAnswer}
+  const turnMeta={intent:'question',canonicalIntent:envelope?.intent?.type||'QUESTION',orchestrationId:envelope?.id||null};
+  if(policy?.directAnswer){renderAnswer(policy.directAnswer,[],'Runtime trực tiếp');saveTurn('user',text,turnMeta);saveTurn('assistant',policy.directAnswer,{intent:'answer',orchestrationId:envelope?.id||null});return policy.directAnswer}
   const gathered=await router.gatherSources(text,policy),relevant=filterRelevantSources(text,gathered?.sources||[],policy);
   let answer='';
   if(gathered?.endpointAnswer&&relevant.length)answer=strip(gathered.endpointAnswer);
   if(!answer)answer=await synthesizeQuestion(text,relevant);
-  renderAnswer(answer,relevant,`Relevance Gate · ${policy?.mode||'question'}`);saveTurn('user',text,{intent:'question',policy:policy?.mode});saveTurn('assistant',answer,{intent:'answer',sourceCount:relevant.length});return answer;
+  renderAnswer(answer,relevant,`Relevance Gate · ${policy?.mode||'question'}`);saveTurn('user',text,{...turnMeta,policy:policy?.mode});saveTurn('assistant',answer,{intent:'answer',orchestrationId:envelope?.id||null,sourceCount:relevant.length});return answer;
 }
 
 function markLateCancelled(task){
@@ -117,12 +163,17 @@ function cleanRoutedTask(task,prefix,original){
   return task;
 }
 
-async function executeTask(text,intent){
-  state('working','Đang thực hiện workflow và QA…',`Nhiệm vụ · ${intent.taskKind} · risk ${intent.risk}`);
+async function executeTask(text,intent,envelope=null){
+  state('working','Đang thực hiện workflow và QA…',`${envelope?.intent?.type||'TASK'} · ${intent.taskKind} · risk ${intent.risk}`);
   const prefix=routingPrefixV22(intent.taskKind),routed=`${prefix}${text}`;
   const task=await router.handleMessage(routed,{spoken:false});
   cleanRoutedTask(task,prefix,text);
-  if(task){task.intentV22={mode:intent.mode,taskKind:intent.taskKind,risk:intent.risk,confidence:intent.confidence,needsApproval:intent.needsApproval};cleanRoutedTask(task,prefix,text)}
+  if(task){
+    task.intentV22={mode:intent.mode,taskKind:intent.taskKind,risk:intent.risk,confidence:intent.confidence,needsApproval:intent.needsApproval};
+    task.orchestrationId=envelope?.id||task.orchestrationId||null;
+    task.intentV32=taskCanonicalMeta(envelope)||task.intentV32||null;
+    cleanRoutedTask(task,prefix,text);
+  }
   return task;
 }
 
@@ -164,11 +215,13 @@ async function handleControl(intent){
 async function handleMessageV22(text,options={}){
   const value=String(text||'').trim();if(!value)return;
   const myId=++requestId,ctx={hasActiveTask:hasActiveTask()},intent=classifyInteractionV22(value,ctx);
-  state('understanding','Đang hiểu yêu cầu…',`${intent.mode} · ${Math.round((intent.confidence||0)*100)}%`);
+  const canonical=classifyCanonicalIntent(value,{interaction:intent,hasActiveTask:ctx.hasActiveTask,channel:options.source==='voice'?'voice':'text',internalOptIn:Boolean(window.AIOfficeSourcePreferences?.useInternal)});
+  const envelope=envelopeFor(value,intent,options);rememberEnvelope(envelope);
+  state('understanding','Đang hiểu yêu cầu…',`${canonical.type} · ${Math.round((canonical.confidence||0)*100)}%`);
 
   const cancel=cancellationIntent(value);
   if(cancel&&window.AIOfficeV21){
-    if(cancel==='command')window.AIOfficeV21.cancelCurrentCommand();else if(cancel==='task')window.AIOfficeV21.cancelRunningTask();else if(cancel==='approval')window.AIOfficeV21.cancelLatestApproval();else if(cancel==='undo_approval')window.AIOfficeV21.undoLatestApproval();else if(cancel==='input')window.AIOfficeV21.cancelInput();state('done','Đã thực hiện lệnh hủy','Control');return;
+    if(cancel==='command')window.AIOfficeV21.cancelCurrentCommand();else if(cancel==='task')window.AIOfficeV21.cancelRunningTask();else if(cancel==='approval')window.AIOfficeV21.cancelLatestApproval();else if(cancel==='undo_approval')window.AIOfficeV21.undoLatestApproval();else if(cancel==='input')window.AIOfficeV21.cancelInput();state('done','Đã thực hiện lệnh hủy',canonical.type);return;
   }
   if(intent.mode==='control')return handleControl(intent);
   if(processing){
@@ -186,17 +239,17 @@ async function handleMessageV22(text,options={}){
       if(myId!==requestId)return;
       if(options.spoken)speakResult(conciseSpeech(result,intent));
     }else if(intent.mode==='hybrid'){
-      const answer=await answerQuestion(intent.questionText);if(myId!==requestId)return;
-      const task=await executeTask(intent.taskText,intent);result={answer,task,status:task?.status||'done'};
+      const answer=await answerQuestion(intent.questionText,envelope);if(myId!==requestId)return;
+      const task=await executeTask(intent.taskText,intent,envelope);result={answer,task,status:task?.status||'done',orchestrationId:envelope.id};
       const spoken=`${conciseSpeech(answer,{mode:'question'})} ${conciseSpeech(task,intent)}`;if(options.spoken)speakResult(spoken);
     }else if(intent.mode==='task'){
-      result=await executeTask(value,intent);if(myId!==requestId){markLateCancelled(result);return}if(options.spoken)speakResult(conciseSpeech(result,intent));
+      result=await executeTask(value,intent,envelope);if(myId!==requestId){markLateCancelled(result);return}if(options.spoken)speakResult(conciseSpeech(result,intent));
     }else{
-      result=await answerQuestion(value);if(myId!==requestId)return;if(options.spoken)speakResult(conciseSpeech(result,intent));
+      result=await answerQuestion(value,envelope);if(myId!==requestId)return;if(options.spoken)speakResult(conciseSpeech(result,intent));
     }
-    if(!options.spoken||!continuousVoice)state(result?.status==='awaiting_input'?'blocked':'done',result?.status==='awaiting_approval'?'Đã xử lý · chờ duyệt':result?.status==='awaiting_input'?'Đang chờ dữ liệu đầu vào':'Hoàn tất',`${intent.mode} · ${Math.round(intent.confidence*100)}%`);
+    if(!options.spoken||!continuousVoice)state(result?.status==='awaiting_input'?'blocked':'done',result?.status==='awaiting_approval'?'Đã xử lý · chờ duyệt':result?.status==='awaiting_input'?'Đang chờ dữ liệu đầu vào':'Hoàn tất',`${canonical.type} · ${Math.round(canonical.confidence*100)}%`);
     return result;
-  }catch(error){console.error('interaction_v22_error',error);const msg='Tôi chưa hoàn tất được yêu cầu này do lỗi runtime. Không có hành động bên ngoài nào được coi là đã hoàn tất.';renderAnswer(msg,[],'Runtime error');state('blocked','Có lỗi · chưa hoàn tất','Safe failure');if(options.spoken)speakResult(msg);return null}
+  }catch(error){console.error('interaction_v22_error',{message:String(error?.message||error).slice(0,220),orchestrationId:envelope?.id||null});const msg='Tôi chưa hoàn tất được yêu cầu này do lỗi runtime. Không có hành động bên ngoài nào được coi là đã hoàn tất.';renderAnswer(msg,[],'Runtime error');state('blocked','Có lỗi · chưa hoàn tất','Safe failure');if(options.spoken)speakResult(msg);return null}
   finally{processing=false}
 }
 
@@ -258,5 +311,5 @@ function attachAfterV21(){
 
 injectUi();
 ({core,router}=await waitRuntime());voice=core.voice;installEarlyInterceptors();
-window.AIOfficeV22={version:VERSION,handleMessage:handleMessageV22,classifyInteraction:classifyInteractionV22,toggleVoice,attachAfterV21};
-state('done','Runtime v2.2 đã sẵn sàng','Semantic Intent · Voice Action');
+window.AIOfficeV22={version:VERSION,handleMessage:handleMessageV22,classifyInteraction:classifyInteractionV22,classifyCanonicalIntent,toggleVoice,attachAfterV21,getLastEnvelope:()=>lastEnvelope};
+state('done','Runtime v2.2 đã sẵn sàng','Canonical Intent · Voice Action');
