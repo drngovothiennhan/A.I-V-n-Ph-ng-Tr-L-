@@ -2,7 +2,7 @@ const RELEASE = '1.9.3';
 const AI_CORE = '3.2.1';
 const GLOBAL_CANCEL = '3.3.0';
 const KNOWLEDGE_ROUTER = '2.7.1';
-const INTERACTION_CONTROL = '2.2';
+const INTERACTION_CONTROL = '2.3';
 const WEATHER_BRIDGE = '2.1';
 const VOICE_RENDER_BRIDGE = '2.3';
 const VOICE_TURN_COORDINATOR = '2.5';
@@ -27,11 +27,9 @@ function syncReleaseLabels() {
 
 async function bootKnowledgeRouter() {
   try {
-    // Canonical intent contract initializes first; existing v1.9/v2.x behavior remains the execution engine.
     const aiCore = await import('./ai-orchestrator-core-v32.js?v=321');
     aiCore.installAICoreOrchestrator?.();
 
-    // Install the explicit source-consent UI before any router can derive source policy.
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
     sourceControl.installInternalSourceControl?.();
 
@@ -42,7 +40,7 @@ async function bootKnowledgeRouter() {
     const researchSafety = await import('./research-safety-guard-v263.js?v=263');
     researchSafety.installResearchSafetyGuard?.();
     const weather = await import('./weather-bridge-v21.js?v=211');
-    await import('./interaction-runtime-v22.js?v=221');
+    const interactionV23 = await import('./interaction-runtime-v23.js?v=230');
     await import('./interaction-control-v21.js?v=211');
     const globalCancel = await import('./global-cancel-v33.js?v=330');
     globalCancel.installGlobalCancel?.();
@@ -52,6 +50,7 @@ async function bootKnowledgeRouter() {
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
     weather.patchVoice?.();
     window.AIOfficeV22?.attachAfterV21?.();
+    interactionV23.attachGlobalCancelVoice?.();
     voiceTurns.installVoiceTurnCoordinator?.();
   } catch (error) {
     console.error('ai_office_extended_boot_failed', { message:String(error?.message || error).slice(0,240) });
