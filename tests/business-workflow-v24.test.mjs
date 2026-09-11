@@ -21,9 +21,18 @@ function policyFor(text, context = {}) {
 {
   const { interaction, policy } = policyFor('Tóm tắt tài liệu kế hoạch trong Drive');
   assert.equal(interaction.mode, 'question');
-  assert.equal(policy.useDrive, true);
   assert.equal(policy.mode, 'internal_admin_question');
+  assert.equal(policy.useDrive, false, 'mentioning Drive must not silently opt the user into internal retrieval');
+  assert.equal(policy.internalRequested, true);
+  assert.equal(policy.internalBlocked, true);
   assert.equal(policy.officialOnly, true);
+}
+
+{
+  const policy = classifySourcePolicy('Tóm tắt tài liệu kế hoạch trong Drive', { kind:'question', useInternal:true });
+  assert.equal(policy.mode, 'internal_admin_question');
+  assert.equal(policy.internalOptIn, true);
+  assert.equal(policy.useDrive, true, 'explicit internal opt-in may enable Drive retrieval');
 }
 
 {
@@ -31,7 +40,7 @@ function policyFor(text, context = {}) {
   assert.equal(interaction.mode, 'task');
   assert.equal(interaction.taskKind, 'admin');
   assert.equal(policy.mode, 'admin_document');
-  assert.equal(policy.useDrive, true);
+  assert.equal(policy.useDrive, false, 'administrative tasks must not silently read internal documents');
   assert.equal(policy.useWeb, true);
   assert.equal(policy.officialOnly, true);
 }
@@ -74,6 +83,7 @@ function policyFor(text, context = {}) {
   assert.equal(interaction.mode, 'question');
   assert.equal(policy.mode, 'medical_question');
   assert.equal(policy.useWeb, true);
+  assert.equal(policy.useDrive, false);
 }
 
 {
@@ -83,4 +93,4 @@ function policyFor(text, context = {}) {
   assert.equal(interaction.needsApproval, true);
 }
 
-console.log('business-workflow-v24: office intent/source/risk scenarios PASS');
+console.log('business-workflow-v27: office intent/source/risk + internal opt-in scenarios PASS');
