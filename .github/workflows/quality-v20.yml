@@ -42,8 +42,8 @@ jobs:
           node --check /tmp/drive-brain-v25.mjs
           cp api/health.ts /tmp/health-v25.mjs
           node --check /tmp/health-v25.mjs
-          cp api/research.ts /tmp/research-v20.mjs
-          node --check /tmp/research-v20.mjs
+          cp api/research.ts /tmp/research-v25.mjs
+          node --check /tmp/research-v25.mjs
           cp api/image.ts /tmp/image-v24.mjs
           node --check /tmp/image-v24.mjs
           cp api/ingest.ts /tmp/ingest-v24.mjs
@@ -55,6 +55,8 @@ jobs:
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
         run: node tests/multisource-orchestrator-v26.test.mjs
+      - name: Research relevance and grounding regression
+        run: node tests/research-relevance-v25.test.mjs
       - name: Interaction v2.1 regression suite
         run: node tests/interaction-policy-v21.test.mjs
       - name: Interaction v2.2 regression suite
