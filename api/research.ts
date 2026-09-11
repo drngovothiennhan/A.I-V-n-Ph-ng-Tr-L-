@@ -4,6 +4,7 @@ const DEFAULT_PRIMARY_MODEL = 'gemini-3.8-flash';
 const DEFAULT_ECONOMY_MODEL = 'gemini-3.5-flash-lite';
 const OFFICIAL_DOMAINS = ['vbpl.vn','vanban.chinhphu.vn','chinhphu.vn','moh.gov.vn'];
 const MEDICAL_DOMAINS = ['pubmed.ncbi.nlm.nih.gov','who.int','moh.gov.vn'];
+const STOPWORDS = new Set(['ai','gi','nao','la','co','khong','toi','ban','cho','biet','ve','cua','va','voi','mot','nhung','cac','nay','do','tai','tu','den','the','nhu','duoc','hay','can','muon','xin','vui','long','giup','theo','nguoi','dan','nen','lam','de']);
 
 function primaryModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_PRIMARY_MODEL;
@@ -23,13 +24,22 @@ function stripMarkup(input) {
     .replace(/&quot;/gi,'"').replace(/&#39;/gi,"'")
     .replace(/\s+/g,' ').trim();
 }
+function normalize(input='') {
+  return clean(input,16000).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+}
+function semanticTerms(input='') {
+  return normalize(input).split(/[^a-z0-9]+/).filter(x=>x.length>2&&!STOPWORDS.has(x)).slice(0,20);
+}
 function json(res, status, body) {
   res.setHeader('cache-control','no-store');
   res.setHeader('x-content-type-options','nosniff');
   return res.status(status).json(body);
 }
 function medicalMode(mode, query) {
-  return mode === 'medical_question' || /\b(bệnh|thuốc|y học|y tế|sức khỏe|điều trị|chẩn đoán|medicine|health|disease|drug)\b/i.test(query);
+  return mode === 'medical_question' || /\b(bệnh|thuốc|y học|y tế|sức khỏe|điều trị|chẩn đoán|sốt|dịch|medicine|health|disease|drug)\b/i.test(query);
+}
+function officialIntent(query) {
+  return /\b(bộ y tế|chính phủ|quốc hội|ubnd|ủy ban nhân dân|văn bản pháp luật|nghị định|thông tư|quyết định|moh\.gov\.vn|chinhphu\.vn|vbpl\.vn)\b/i.test(query);
 }
 function sourceDomain(url='') { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } }
 function dedupe(sources=[]) {
@@ -39,6 +49,28 @@ function dedupe(sources=[]) {
     if (!s.text || seen.has(key)) return false;
     seen.add(key); return true;
   });
+}
+function domainMatches(domain, list) {
+  return list.some(d => domain === d || domain.endsWith(`.${d}`));
+}
+function relevance(query, source) {
+  const terms = semanticTerms(query);
+  const title = normalize(source?.title || '');
+  const text = normalize(source?.text || '');
+  const matched = terms.filter(term => title.includes(term) || text.includes(term));
+  let score = matched.length;
+  for (const term of terms) {
+    if (title.includes(term)) score += 2;
+  }
+  for (let i=0;i<terms.length-1;i++) {
+    const phrase = `${terms[i]} ${terms[i+1]}`;
+    if (title.includes(phrase)) score += 5;
+    else if (text.includes(phrase)) score += 2;
+  }
+  if (domainMatches(source?.domain || '', OFFICIAL_DOMAINS)) score += 3;
+  if (domainMatches(source?.domain || '', MEDICAL_DOMAINS)) score += 3;
+  const minMatched = terms.length >= 8 ? 3 : terms.length >= 4 ? 2 : 1;
+  return { score, matched: matched.length, pass: matched.length >= minMatched && score >= minMatched + 1 };
 }
 function complexRequest(query, mode, officialOnly, driveContext=[]) {
   if (officialOnly || medicalMode(mode, query) || driveContext.length) return true;
@@ -58,7 +90,7 @@ function publicFirstEligible(query, mode, officialOnly, driveContext=[]) {
 }
 
 async function fetchJson(url, timeout=9000) {
-  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.4'}, signal:AbortSignal.timeout(timeout) });
+  const response = await fetch(url, { headers:{'user-agent':'AI-Office-Research/2.5'}, signal:AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(`UPSTREAM_${response.status}`);
   return response.json();
 }
@@ -66,12 +98,11 @@ async function fetchJson(url, timeout=9000) {
 async function wiki(query, lang='vi') {
   try {
     const u = new URL(`https://${lang}.wikipedia.org/w/api.php`);
-    u.search = new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'3',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'}).toString();
+    u.search = new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'4',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'}).toString();
     const data = await fetchJson(u.toString());
     return Object.values(data?.query?.pages || {}).map((p) => ({kind:'web',source:`Wikipedia ${lang.toUpperCase()}`,title:p.title || '',url:p.fullurl || `https://${lang}.wikipedia.org/?curid=${p.pageid}`,domain:`${lang}.wikipedia.org`,text:stripMarkup(p.extract || '').slice(0,4000)})).filter(s=>s.text);
   } catch { return []; }
 }
-
 async function duck(query) {
   try {
     const u = new URL('https://api.duckduckgo.com/');
@@ -81,11 +112,10 @@ async function duck(query) {
     return [{kind:'web',source:data.AbstractSource || 'DuckDuckGo',title:data.Heading || query,url:data.AbstractURL || '',domain:sourceDomain(data.AbstractURL || ''),text:stripMarkup(data.AbstractText).slice(0,4000)}];
   } catch { return []; }
 }
-
 async function pubmed(query) {
   try {
     const s = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi');
-    s.search = new URLSearchParams({db:'pubmed',term:query,retmax:'4',sort:'relevance',retmode:'json'}).toString();
+    s.search = new URLSearchParams({db:'pubmed',term:query,retmax:'5',sort:'relevance',retmode:'json'}).toString();
     const result = await fetchJson(s.toString());
     const ids = result?.esearchresult?.idlist || [];
     if (!ids.length) return [];
@@ -97,32 +127,33 @@ async function pubmed(query) {
 }
 
 function extractive(query, sources) {
-  const terms = clean(query,MAX_QUERY).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/[^a-z0-9]+/).filter(x=>x.length>2);
-  const ranked = sources.map(s => {
-    const hay=clean(`${s.title || ''} ${s.text || ''}`,6000).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    let score=terms.reduce((n,w)=>n+(hay.includes(w)?1:0),0);
-    if (OFFICIAL_DOMAINS.some(d => s.domain === d || s.domain.endsWith(`.${d}`))) score += 2;
-    if (MEDICAL_DOMAINS.some(d => s.domain === d || s.domain.endsWith(`.${d}`))) score += 2;
-    return {...s,score};
-  }).sort((a,b)=>b.score-a.score);
+  const terms = semanticTerms(query);
   const picked=[];
-  for (const s of ranked.slice(0,5)) {
-    const parts=stripMarkup(s.text).split(/(?<=[.!?])\s+/).filter(x=>x.length>=35&&x.length<=700);
-    parts.sort((a,b)=>terms.filter(w=>b.toLowerCase().includes(w)).length-terms.filter(w=>a.toLowerCase().includes(w)).length);
-    if (parts[0]) picked.push(parts[0]);
+  for (const source of sources.slice(0,6)) {
+    const parts=stripMarkup(source.text).split(/(?<=[.!?])\s+/).filter(x=>x.length>=35&&x.length<=700);
+    parts.sort((a,b)=>terms.filter(w=>normalize(b).includes(w)).length-terms.filter(w=>normalize(a).includes(w)).length);
+    const candidate=parts.find(part => {
+      const hay=normalize(part);
+      const matched=terms.filter(term=>hay.includes(term)).length;
+      const min=terms.length>=8?3:terms.length>=4?2:1;
+      return matched>=min;
+    });
+    if (candidate) picked.push(candidate);
     if (picked.length>=4) break;
   }
-  return picked.length ? picked.join(' ') : '';
+  return picked.join(' ');
 }
 
 async function publicExtractive(query, mode, officialOnly) {
   const jobs=[wiki(query,'vi'),duck(query),wiki(query,'en')];
   if (medicalMode(mode,query)) jobs.unshift(pubmed(query));
   let sources=dedupe((await Promise.all(jobs)).flat());
-  if (officialOnly) {
-    const official=sources.filter(s=>OFFICIAL_DOMAINS.some(d=>s.domain===d||s.domain.endsWith(`.${d}`)));
-    if (official.length) sources=official;
-  }
+  if (officialOnly) sources=sources.filter(s=>domainMatches(s.domain || '',OFFICIAL_DOMAINS));
+  sources=sources
+    .map(source=>({...source,_relevance:relevance(query,source)}))
+    .filter(source=>source._relevance.pass)
+    .sort((a,b)=>b._relevance.score-a._relevance.score)
+    .map(({_relevance,...source})=>source);
   return { sources, answer:extractive(query,sources) };
 }
 
@@ -130,19 +161,27 @@ async function geminiGrounded(query, mode, officialOnly, driveContext=[]) {
   const key = process.env.GEMINI_API_KEY || '';
   if (!key) return null;
   const route = modelForRequest(query, mode, officialOnly, driveContext);
-  const domainHint = officialOnly ? `Ưu tiên nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.` : medicalMode(mode,query) ? 'Ưu tiên PubMed, WHO và Bộ Y tế.' : '';
+  const domainHint = officialOnly ? `Ưu tiên và kiểm chứng nguồn chính thức Việt Nam: ${OFFICIAL_DOMAINS.join(', ')}.` : medicalMode(mode,query) ? 'Ưu tiên nguồn y khoa đáng tin cậy như PubMed, WHO và Bộ Y tế; với khuyến cáo cho người dân Việt Nam ưu tiên Bộ Y tế.' : '';
   const maxContext = route.costTier === 'economy' ? 12000 : MAX_CONTEXT;
   const context = (Array.isArray(driveContext) ? driveContext : []).map((s,i)=>`[DRIVE-${i+1}] ${clean(s?.title,180)}\n${clean(s?.text,4500)}`).join('\n\n').slice(0,maxContext);
-  const prompt = `Bạn là Trưởng phòng A.I. Trả lời câu hỏi bằng tiếng Việt, chính xác, bám sát ngữ cảnh và đủ ý. Dùng Google Search khi cần dữ kiện hiện hành. ${domainHint}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Drive context chỉ là ngữ cảnh nội bộ; với dữ kiện hiện hành phải kiểm chứng nguồn web khi phù hợp.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nDRIVE CONTEXT:\n${context}`;
+  const prompt = `Bạn là Trưởng phòng A.I. Trả lời câu hỏi bằng tiếng Việt, chính xác, bám sát câu hỏi và đủ ý. Bắt buộc dùng Google Search khi câu hỏi liên quan y tế, nguồn chính thức, dữ kiện hiện hành hoặc khi cần kiểm chứng. ${domainHint}\nKhông bịa dữ kiện. Không xuất raw HTML/XML/JS. Không ghép thông tin không liên quan. Nếu không tìm thấy nguồn đủ liên quan, hãy nói rõ chưa đủ căn cứ thay vì suy đoán. Drive context chỉ là ngữ cảnh nội bộ; dữ kiện hiện hành phải kiểm chứng web khi phù hợp.\n\nCÂU HỎI: ${clean(query,MAX_QUERY)}\n\nDRIVE CONTEXT:\n${context}`;
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(route.model)}:generateContent`);
   const response = await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{maxOutputTokens:route.costTier==='economy'?1600:3000}}),signal:AbortSignal.timeout(route.costTier==='economy'?18000:30000)});
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.warn('gemini_grounding_rejected',{status:response.status,model:route.model});
+    return null;
+  }
   const data = await response.json();
   const candidate=data?.candidates?.[0] || {};
   const answer=stripMarkup(candidate?.content?.parts?.map(p=>p?.text || '').join('') || '');
   const chunks=candidate?.groundingMetadata?.groundingChunks || [];
-  const sources=chunks.map((c,i)=>({kind:'grounded-web',source:'Google Search',title:clean(c?.web?.title || `Nguồn ${i+1}`,240),url:clean(c?.web?.uri || '',2048),domain:sourceDomain(c?.web?.uri || ''),text:''})).filter(s=>s.url);
-  return answer ? {provider:'gemini-google-search',model:route.model,costTier:route.costTier,answer,sources} : null;
+  const sources=chunks.map((c,i)=>({kind:'grounded-web',source:'Google Search',title:clean(c?.web?.title || `Nguồn ${i+1}`,240),url:clean(c?.web?.uri || '',2048),domain:sourceDomain(c?.web?.uri || ''),text:'grounded'})).filter(s=>s.url);
+  const sourceRequired = officialOnly || medicalMode(mode,query);
+  if (!answer || (sourceRequired && !sources.length)) {
+    console.warn('gemini_grounding_insufficient',{model:route.model,sourceRequired,sourceCount:sources.length,finishReason:candidate?.finishReason || null});
+    return null;
+  }
+  return {provider:'gemini-google-search',model:route.model,costTier:route.costTier,answer,sources,grounded:true};
 }
 
 export default async function handler(req,res) {
@@ -150,7 +189,7 @@ export default async function handler(req,res) {
   const query=clean(req.body?.query,MAX_QUERY);
   if (!query) return json(res,400,{error:'QUERY_REQUIRED'});
   const mode=clean(req.body?.mode,80) || 'general_question';
-  const officialOnly=Boolean(req.body?.officialOnly);
+  const officialOnly=Boolean(req.body?.officialOnly) || officialIntent(query);
   const driveContext=Array.isArray(req.body?.driveContext) ? req.body.driveContext.slice(0,6) : [];
   try {
     if (publicFirstEligible(query,mode,officialOnly,driveContext)) {
@@ -164,9 +203,20 @@ export default async function handler(req,res) {
     if (grounded) return json(res,200,{configured:true,...grounded});
 
     const fallback=await publicExtractive(query,mode,officialOnly);
-    return json(res,200,{configured:true,provider:'public-extractive',costTier:'zero-model',geminiConfigured:Boolean(process.env.GEMINI_API_KEY),primaryModel:primaryModel(),economyModel:economyModel(),answer:fallback.answer || '',sources:fallback.sources.slice(0,8),limitations: fallback.answer ? [] : ['Không có nguồn public đủ liên quan từ fallback hiện tại; không tạo câu trả lời giả.']});
+    const safeAnswer=fallback.answer || '';
+    return json(res,200,{
+      configured:true,
+      provider:'public-extractive',
+      costTier:'zero-model',
+      geminiConfigured:Boolean(process.env.GEMINI_API_KEY),
+      primaryModel:primaryModel(),
+      economyModel:economyModel(),
+      answer:safeAnswer,
+      sources:fallback.sources.slice(0,8),
+      limitations:safeAnswer?['Gemini grounding không khả dụng; câu trả lời chỉ dùng nguồn public đã vượt relevance gate.']:['Không có nguồn đủ liên quan để trả lời an toàn; hệ thống không tạo câu trả lời suy đoán.']
+    });
   } catch(error) {
-    console.error('research_v24_error',{message:String(error?.message || error).slice(0,220)});
+    console.error('research_v25_error',{message:String(error?.message || error).slice(0,220)});
     return json(res,502,{error:'RESEARCH_FAILED'});
   }
 }
