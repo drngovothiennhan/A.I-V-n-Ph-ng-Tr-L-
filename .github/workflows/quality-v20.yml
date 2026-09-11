@@ -20,6 +20,7 @@ jobs:
           node --check src/source-policy-v20.js
           node --check src/knowledge-router-v20.js
           node --check src/multisource-orchestrator-v26.js
+          node --check src/research-safety-guard-v263.js
           node --check src/interaction-policy-v21.js
           node --check src/interaction-policy-v22.js
           node --check src/interaction-runtime-v22.js
@@ -57,6 +58,8 @@ jobs:
         run: node tests/multisource-orchestrator-v26.test.mjs
       - name: Research relevance and grounding regression
         run: node tests/research-relevance-v25.test.mjs
+      - name: Client high-stakes research safety regression
+        run: node tests/research-safety-guard-v263.test.mjs
       - name: Interaction v2.1 regression suite
         run: node tests/interaction-policy-v21.test.mjs
       - name: Interaction v2.2 regression suite
@@ -96,7 +99,7 @@ jobs:
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "VERCEL_TOKEN is not configured; production deploy is skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "VERCEL_TOKEN is not configured; backend deployment is not executed." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "available=true" >> "$GITHUB_OUTPUT"
           fi
@@ -125,4 +128,4 @@ jobs:
           node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery') process.exit(1); console.log('health ok:',h.productCompletion)"
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
           node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('artifact selftest ok:',t.engine)"
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/src/multisource-orchestrator-v26.js | grep -q "2.6.2-multisource-orchestrator"
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/src/research-safety-guard-v263.js | grep -q "2.6.3-client-research-safety-guard"
