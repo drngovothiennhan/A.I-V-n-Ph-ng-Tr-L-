@@ -5,6 +5,7 @@ import { createArtifact } from './_artifact-engine.js';
 const MAX_BODY = 256 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const CHIEF_TIMEOUT_MS = 12000;
 
 function geminiModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
@@ -39,26 +40,54 @@ function cleanText(input, max = 12000) {
   return String(input ?? '').replace(/\0/g, '').slice(0, max);
 }
 
+function isTimeoutError(error) {
+  const name = String(error?.name || '');
+  const message = String(error?.message || '').toLowerCase();
+  return name === 'TimeoutError' || name === 'AbortError' || message.includes('timeout') || message.includes('timed out');
+}
+
 async function chief(body) {
   const message = cleanText(body?.message, 24000);
   if (!message) return { reply: '' };
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return { reply: '', provider: 'local', fallback: true };
+  if (!key) return { reply: '', provider: 'local', fallback: true, providerHealth: 'not-configured' };
   const model = geminiModel();
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: message }] }],
-      generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
-    }),
-    signal: AbortSignal.timeout(30000)
-  });
-  if (!response.ok) return { reply: '', provider: 'local', fallback: true, upstreamStatus: response.status, model };
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: message }] }],
+        generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
+      }),
+      signal: AbortSignal.timeout(CHIEF_TIMEOUT_MS)
+    });
+  } catch (error) {
+    if (!isTimeoutError(error)) throw error;
+    console.warn('chief_provider_timeout', { provider: 'gemini', timeoutMs: CHIEF_TIMEOUT_MS, model });
+    return {
+      reply: '',
+      provider: 'local',
+      fallback: true,
+      providerHealth: 'degraded-timeout',
+      limitation: 'GEMINI_TIMEOUT_FALLBACK',
+      timeoutMs: CHIEF_TIMEOUT_MS,
+      model
+    };
+  }
+  if (!response.ok) return {
+    reply: '',
+    provider: 'local',
+    fallback: true,
+    providerHealth: [401, 403, 429].includes(response.status) ? 'degraded' : 'upstream-error',
+    upstreamStatus: response.status,
+    model
+  };
   const data = await response.json();
   const reply = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('') || '';
-  return { reply, provider: 'gemini', fallback: false, model };
+  return { reply, provider: 'gemini', fallback: false, providerHealth: 'healthy', model };
 }
 
 async function webRead(body) {
