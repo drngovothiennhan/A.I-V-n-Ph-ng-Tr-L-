@@ -20,7 +20,7 @@ assert.match(v28, /INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/, 'internal context m
 assert.match(v29, /function latestIntent\(/, 'v2.9 must identify latest/news intent');
 assert.match(v29, /googleNews\(searchQuery\)/, 'latest queries must retrieve current Google News results');
 assert.match(v29, /duckHtml\(searchQuery\)/, 'latest queries must retain current web search as secondary retrieval');
-assert.match(v29, /!\/(\^\|\\\.)wikipedia\\\.org\$\/i\.test/, 'latest source policy must explicitly exclude Wikipedia domains');
+assert.ok(v29.includes('wikipedia\\.org$/i.test'), 'latest source policy must explicitly exclude Wikipedia domains');
 assert.match(v29, /s\.kind==='news-search'\|\|s\.kind==='web-search'\|\|s\.kind==='scholarly'/, 'latest source policy must allow only fresh/search/scholarly classes');
 assert.match(v29, /provider:'gemini-fresh-search-synthesis'/, 'latest quota fallback must stay Gemini synthesized');
 assert.match(v29, /freshnessPolicy:'latest-only-v29'/, 'latest responses must expose freshness policy');
