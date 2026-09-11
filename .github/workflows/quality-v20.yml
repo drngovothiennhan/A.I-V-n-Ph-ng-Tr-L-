@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main]
+    branches: [main, ai-office-phase12-global-cancel]
   workflow_dispatch:
 
 jobs:
@@ -24,6 +24,8 @@ jobs:
           node --check src/interaction-policy-v21.js
           node --check src/interaction-policy-v22.js
           node --check src/interaction-runtime-v22.js
+          node --check src/interaction-runtime-v23.js
+          node --check src/global-cancel-v33.js
           node --check src/weather-bridge-v21.js
           node --check src/interaction-control-v21.js
           node --check src/voice/xiaozhi-voice-fabric.js
@@ -52,6 +54,7 @@ jobs:
           cp api/selftest.ts /tmp/selftest-v24.mjs
           node --check /tmp/selftest-v24.mjs
           node --check api/provider-check.ts
+          node --check tests/global-cancel-v33.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -64,6 +67,8 @@ jobs:
         run: node tests/interaction-policy-v21.test.mjs
       - name: Interaction v2.2 regression suite
         run: node tests/interaction-policy-v22.test.mjs
+      - name: Global cancel + canonical runtime regression
+        run: node tests/global-cancel-v33.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -83,6 +88,7 @@ jobs:
 
   deploy-production:
     needs: source-policy
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
