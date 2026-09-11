@@ -1,6 +1,7 @@
 const RELEASE = '1.9.3';
 const AI_CORE = '3.2.1';
 const GLOBAL_CANCEL = '3.3.0';
+const AUTHORIZATION = '3.4.0';
 const KNOWLEDGE_ROUTER = '2.7.1';
 const INTERACTION_CONTROL = '2.3';
 const WEATHER_BRIDGE = '2.1';
@@ -18,11 +19,9 @@ function syncReleaseLabels() {
   const brandSmall = document.querySelector('.brand small');
   if (brandSmall) brandSmall.textContent = `Autonomous Office Orchestrator · v${RELEASE}`;
   const footer = document.querySelector('.footer');
-  if (footer) footer.textContent = `A.I VĂN PHÒNG · ${RELEASE} · AI CORE ${AI_CORE} · CANCEL ${GLOBAL_CANCEL} · SOURCE ROUTER ${KNOWLEDGE_ROUTER} · INTERNAL ${INTERNAL_SOURCE_CONTROL} · MULTISOURCE ${MULTISOURCE_ORCHESTRATOR} · SAFETY ${RESEARCH_SAFETY} · INTERACTION ${INTERACTION_CONTROL} · VOICE ${VOICE_RENDER_BRIDGE} · TURN ${VOICE_TURN_COORDINATOR} · RUNTIME ${CREDENTIALS_RUNTIME} · PRODUCT ${PRODUCT_COMPLETION} · Dashboard v1.5 approved`;
+  if (footer) footer.textContent = `A.I VĂN PHÒNG · ${RELEASE} · AI CORE ${AI_CORE} · CANCEL ${GLOBAL_CANCEL} · AUTH ${AUTHORIZATION} · SOURCE ROUTER ${KNOWLEDGE_ROUTER} · INTERNAL ${INTERNAL_SOURCE_CONTROL} · MULTISOURCE ${MULTISOURCE_ORCHESTRATOR} · SAFETY ${RESEARCH_SAFETY} · INTERACTION ${INTERACTION_CONTROL} · VOICE ${VOICE_RENDER_BRIDGE} · TURN ${VOICE_TURN_COORDINATOR} · RUNTIME ${CREDENTIALS_RUNTIME} · PRODUCT ${PRODUCT_COMPLETION} · Dashboard v1.5 approved`;
   const status = document.querySelector('#v19Status');
-  if (status && /^v1\.9\.2\b/.test(status.textContent || '')) {
-    status.textContent = (status.textContent || '').replace(/^v1\.9\.2\b/, `v${RELEASE}`);
-  }
+  if (status && /^v1\.9\.2\b/.test(status.textContent || '')) status.textContent = (status.textContent || '').replace(/^v1\.9\.2\b/, `v${RELEASE}`);
 }
 
 async function bootKnowledgeRouter() {
@@ -45,6 +44,8 @@ async function bootKnowledgeRouter() {
     const globalCancel = await import('./global-cancel-v33.js?v=330');
     globalCancel.installGlobalCancel?.();
     await import('./credential-setup-v22.js?v=230');
+    const authorization = await import('./authorization-broker-v34.js?v=340');
+    authorization.installAuthorizationBroker?.();
     await import('./product-completion-v24.js?v=240');
     await import('./voice-render-bridge-v23.js?v=230');
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
@@ -67,6 +68,7 @@ setTimeout(bootKnowledgeRouter, 0);
 window.AIOfficeRelease = RELEASE;
 window.AIOfficeAICoreVersion = AI_CORE;
 window.AIOfficeGlobalCancelVersion = GLOBAL_CANCEL;
+window.AIOfficeAuthorizationVersion = AUTHORIZATION;
 window.AIOfficeKnowledgeRouterVersion = KNOWLEDGE_ROUTER;
 window.AIOfficeInternalSourceControlVersion = INTERNAL_SOURCE_CONTROL;
 window.AIOfficeMultiSourceVersion = MULTISOURCE_ORCHESTRATOR;
