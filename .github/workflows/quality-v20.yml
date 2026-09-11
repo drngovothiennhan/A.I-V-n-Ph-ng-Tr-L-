@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context]
   workflow_dispatch:
 
 jobs:
@@ -23,6 +23,8 @@ jobs:
           node --check src/research-safety-guard-v263.js
           node --check src/interaction-policy-v21.js
           node --check src/interaction-policy-v22.js
+          node --check src/context-manager-v35.js
+          node --check src/ai-orchestrator-core-v32.js
           node --check src/interaction-runtime-v22.js
           node --check src/interaction-runtime-v23.js
           node --check src/global-cancel-v33.js
@@ -55,6 +57,7 @@ jobs:
           cp api/selftest.ts /tmp/selftest-v24.mjs
           node --check /tmp/selftest-v24.mjs
           node --check api/provider-check.ts
+          node --check tests/context-manager-v35.test.mjs
           node --check tests/global-cancel-v33.test.mjs
           node --check tests/authorization-broker-v34.test.mjs
       - name: Source policy regression suite
@@ -69,6 +72,8 @@ jobs:
         run: node tests/interaction-policy-v21.test.mjs
       - name: Interaction v2.2 regression suite
         run: node tests/interaction-policy-v22.test.mjs
+      - name: Bounded context regression
+        run: node tests/context-manager-v35.test.mjs
       - name: Global cancel + canonical runtime regression
         run: node tests/global-cancel-v33.test.mjs
       - name: Authorization broker regression
