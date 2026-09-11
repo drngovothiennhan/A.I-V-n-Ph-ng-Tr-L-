@@ -49,7 +49,7 @@ assert.match(control,/localStorage\.getItem\(KEY\)==='1'/,'absence of preference
 assert.match(control,/Dùng tài liệu nội bộ/,'UI must expose a clear internal-source toggle');
 assert.match(control,/Gemini Search mặc định/,'UI must disclose the default search provider');
 
-assert.match(release,/ai-orchestrator-core-v32\.js\?v=321/,'canonical intent contract must boot before source routing');
+assert.match(release,/ai-orchestrator-core-v32\.js\?v=322/,'current canonical intent/context contract must boot before source routing');
 assert.match(release,/internal-source-control-v27\.js\?v=270/,'production release chain must load internal source control');
 assert.match(release,/sourceControl\.installInternalSourceControl\?\.\(\)/,'production release chain must activate internal source control');
 assert.match(release,/multisource-orchestrator-v26\.js\?v=271/,'production release chain must load v2.7.1 multisource router');
