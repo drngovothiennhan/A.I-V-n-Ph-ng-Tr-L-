@@ -1,6 +1,7 @@
 import { classifyInteractionV22, normalizeV22 } from './interaction-policy-v22.js';
+import { createContextSnapshot, contextEnvelopeFields } from './context-manager-v35.js';
 
-export const AI_CORE_VERSION = '3.2.1-source-consent-safe';
+export const AI_CORE_VERSION = '3.2.2-bounded-context';
 export const CANONICAL_INTENTS = Object.freeze({
   QUESTION:'QUESTION',
   TASK:'TASK',
@@ -121,6 +122,8 @@ export function classifyCanonicalIntent(text='',context={}){
 
 export function createOrchestrationEnvelope(text='',context={}){
   const intent=classifyCanonicalIntent(text,context);
+  const snapshot=createContextSnapshot({userInstruction:text,kind:intent.type,channel:context.channel||'text'});
+  const managed=contextEnvelopeFields(snapshot);
   const id=globalThis.crypto?.randomUUID?.()||`req-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
   return {
     id,
@@ -129,11 +132,16 @@ export function createOrchestrationEnvelope(text='',context={}){
     intent,
     context:{
       conversationId:context.conversationId||null,
-      currentTaskId:context.currentTaskId||null,
-      selectedFiles:Array.isArray(context.selectedFiles)?context.selectedFiles.slice(0,20):[],
-      selectedKnowledgeSource:context.selectedKnowledgeSource||null,
-      approvalState:context.approvalState||null,
-      cancelState:context.cancelState||null
+      currentTaskId:context.currentTaskId||managed.currentTaskId||null,
+      selectedFiles:Array.isArray(context.selectedFiles)?context.selectedFiles.slice(0,20):managed.selectedFiles,
+      selectedKnowledgeSource:context.selectedKnowledgeSource||managed.selectedKnowledgeSource||null,
+      approvalState:context.approvalState||managed.approvalState||null,
+      cancelState:context.cancelState||managed.cancelState||null,
+      conversation:managed.conversation,
+      recentTaskResult:managed.recentTaskResult,
+      taskMemory:managed.taskMemory,
+      contextVersion:snapshot.version,
+      contextLimits:snapshot.limits
     },
     route:{
       sourceMode:intent.source.mode,
