@@ -7,7 +7,7 @@ const SELECTED_FILES_KEY='ai-office-selected-files-v35';
 const ACTIVE=new Set(['received','analyzing','planning','executing','verifying','delegated','processing','creating_output','uploading','queued','waiting_permission','waiting_approval','awaiting_input','awaiting_approval']);
 const TERMINAL=new Set(['completed','failed','cancelled','rejected','approval_cancelled','input_cancelled','output_cancelled']);
 
-const getJson=(key,fallback=[])=>{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
+const getJson=(key,fallback=[])=>{try{if(typeof localStorage==='undefined')return fallback;return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
 const compactText=(text,max=1200)=>String(text||'').replace(/\s+/g,' ').trim().slice(0,max);
 const compactTask=(task=null)=>task?{
   id:task.id||null,title:compactText(task.title||task.originalMessage||'',180),status:task.status||null,
@@ -18,7 +18,7 @@ const compactTask=(task=null)=>task?{
   orchestrationId:task.orchestrationId||null
 }:null;
 function selectedFiles(){
-  const runtime=Array.isArray(window.AIOfficeSelectedFiles)?window.AIOfficeSelectedFiles:[];
+  const runtime=typeof window!=='undefined'&&Array.isArray(window.AIOfficeSelectedFiles)?window.AIOfficeSelectedFiles:[];
   const stored=getJson(SELECTED_FILES_KEY,[]);
   return [...runtime,...(Array.isArray(stored)?stored:[])].slice(0,20).map(file=>({
     id:file?.id||null,name:compactText(file?.name||file?.title||'',180),type:compactText(file?.type||file?.mimeType||'',100),source:file?.source||null
@@ -48,8 +48,10 @@ export function createContextSnapshot({userInstruction='',kind='',channel='text'
   const approval=tasks.find(t=>['awaiting_approval','waiting_approval'].includes(t?.status))||null;
   const cancels=getJson(CANCEL_KEY,[]);const cancelState=cancels.at?.(-1)||cancels[cancels.length-1]||null;
   const conversation=compressedConversation();
-  const internalOptIn=localStorage.getItem(INTERNAL_PREF_KEY)==='1'||window.AIOfficeSourcePreferences?.useInternal===true;
-  const driveState=window.AIOfficeMultiSourceV26?.state?.drive||null;
+  const internalStored=typeof localStorage!=='undefined'&&localStorage.getItem(INTERNAL_PREF_KEY)==='1';
+  const internalRuntime=typeof window!=='undefined'&&window.AIOfficeSourcePreferences?.useInternal===true;
+  const driveState=typeof window!=='undefined'?window.AIOfficeMultiSourceV26?.state?.drive||null:null;
+  const internalOptIn=internalStored||internalRuntime;
   return{
     version:VERSION,createdAt:new Date().toISOString(),channel,userInstruction:compactText(userInstruction,1800),
     conversation,
