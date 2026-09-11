@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout]
   workflow_dispatch:
 
 jobs:
@@ -51,6 +51,8 @@ jobs:
           node --check /tmp/health-v25.mjs
           cp api/research.ts /tmp/research-v25.mjs
           node --check /tmp/research-v25.mjs
+          cp api/proxy.ts /tmp/proxy-v37.mjs
+          node --check /tmp/proxy-v37.mjs
           cp api/image.ts /tmp/image-v24.mjs
           node --check /tmp/image-v24.mjs
           cp api/ingest.ts /tmp/ingest-v24.mjs
@@ -62,6 +64,7 @@ jobs:
           node --check tests/global-cancel-v33.test.mjs
           node --check tests/authorization-broker-v34.test.mjs
           node --check tests/operations-center-v36.test.mjs
+          node --check tests/proxy-chief-resilience-v37.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -82,6 +85,8 @@ jobs:
         run: node tests/authorization-broker-v34.test.mjs
       - name: Operations Center regression
         run: node tests/operations-center-v36.test.mjs
+      - name: Chief timeout resilience regression
+        run: node tests/proxy-chief-resilience-v37.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
