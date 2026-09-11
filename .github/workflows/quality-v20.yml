@@ -38,10 +38,10 @@ jobs:
           node --check api/_office-ingest.js
           cp integrations/google-apps-script/DriveBrainBridge.gs /tmp/drive-brain-bridge-v24.mjs
           node --check /tmp/drive-brain-bridge-v24.mjs
-          cp api/drive-brain.ts /tmp/drive-brain-v24.mjs
-          node --check /tmp/drive-brain-v24.mjs
-          cp api/health.ts /tmp/health-v24.mjs
-          node --check /tmp/health-v24.mjs
+          cp api/drive-brain.ts /tmp/drive-brain-v25.mjs
+          node --check /tmp/drive-brain-v25.mjs
+          cp api/health.ts /tmp/health-v25.mjs
+          node --check /tmp/health-v25.mjs
           cp api/research.ts /tmp/research-v20.mjs
           node --check /tmp/research-v20.mjs
           cp api/image.ts /tmp/image-v24.mjs
@@ -65,6 +65,8 @@ jobs:
         run: node tests/drive-registry-v24.test.mjs
       - name: Drive Brain bridge contract regression
         run: node tests/drive-bridge-contract-v24.test.mjs
+      - name: Drive Brain multi-provider readonly regression
+        run: node tests/drive-runtime-provider-v25.test.mjs
       - name: XiaoZhi client continuity contract
         run: node tests/xiaozhi-client-contract-v24.test.mjs
       - name: XiaoZhi gateway live fallback regression
