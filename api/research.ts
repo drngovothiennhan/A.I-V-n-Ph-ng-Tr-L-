@@ -1,3 +1,3 @@
-import v30 from './research-v30.js';
+import v31 from './research-v31.js';
 
-export default v30;
+export default v31;
