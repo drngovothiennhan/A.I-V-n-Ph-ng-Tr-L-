@@ -37,9 +37,14 @@ export function cancellationIntent(text='') {
   const n = normalizeV21(text);
   if (/\b(hoan tac duyet|huy ket qua da duyet|huy duyet da xong|bo duyet da xong)\b/.test(n)) return 'undo_approval';
   if (/\b(huy xet duyet|huy duyet ket qua|huy cho duyet|bo ket qua cho duyet|tu choi ket qua)\b/.test(n)) return 'approval';
-  if (/\b(huy du lieu dau vao|xoa du lieu dau vao|bo du lieu dau vao|huy file dau vao|bo file dau vao)\b/.test(n)) return 'input';
+  if (/\b(khong dung du lieu vua gui|bo du lieu vua gui|huy du lieu dau vao|xoa du lieu dau vao|bo du lieu dau vao|huy file dau vao|bo file dau vao)\b/.test(n)) return 'input';
+  if (/\b(huy tai len|dung tai len|bo tai len|huy upload|dung upload|cancel upload)\b/.test(n)) return 'upload';
+  if (/\b(huy ai dang tao|dung ai dang tao|huy tao noi dung|dung tao noi dung|huy sinh noi dung|dung sinh noi dung|cancel generation)\b/.test(n)) return 'ai_generation';
+  if (/\b(huy xu ly|dung xu ly|dung dang xu ly|huy dang xu ly|bo xu ly)\b/.test(n)) return 'processing';
+  if (/\b(bo ket qua nay|huy ket qua nay|bo dau ra|huy dau ra|huy output|cancel output)\b/.test(n)) return 'output';
+  if (/\b(huy hanh dong dang cho|huy thao tac dang cho|bo hanh dong dang cho|huy pending action|cancel pending action)\b/.test(n)) return 'pending_action';
   if (/\b(huy cong viec|dung cong viec|huy task|dung task|huy viec dang lam|dung viec dang lam)\b/.test(n)) return 'task';
-  if (/^(huy lenh|dung lenh|huy yeu cau|dung lai|stop|cancel)\b/.test(n)) return 'command';
+  if (/^(huy lenh|dung lenh|huy yeu cau|dung lai|huy|dung|stop|cancel)\b/.test(n)) return 'command';
   return '';
 }
 
