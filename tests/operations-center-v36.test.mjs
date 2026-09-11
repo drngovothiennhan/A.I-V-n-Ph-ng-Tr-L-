@@ -31,7 +31,7 @@ assert.match(source,/NO TELEMETRY/,'missing runtime telemetry must be disclosed 
 assert.match(source,/Health API RTT đo được/,'measured health RTT must be labeled separately from model latency');
 assert.match(source,/durable semantic index\/delta sync chưa có telemetry/,'AI Center must not pretend Drive semantic indexing exists');
 assert.match(source,/rows\.filter\(row=>row\.kind==='issue'\|\|row\.kind==='unknown'\)/,'default AI Center view must focus on issues/unknowns');
-assert.match(source,/setInterval\([^)]*=>[\s\S]{0,220}activeTab==='tasks'/,'task polling must only refresh the open Task Center');
+assert.match(source,/function startTaskRefresh\(\)\{[\s\S]{0,260}activeTab==='tasks'[\s\S]{0,80}renderTasks\(\)/,'task polling must only refresh the open Task Center');
 assert.match(source,/clearInterval\(taskTimer\)/,'Task Center polling must be cleaned up');
 assert.match(source,/data-ops36-nav='ai'|dataset\.ops36Nav='ai'/,'existing navigation must gain one AI Center entry instead of a second dashboard');
 assert.match(source,/Nhiệm vụ/,'existing task navigation must be reused');
