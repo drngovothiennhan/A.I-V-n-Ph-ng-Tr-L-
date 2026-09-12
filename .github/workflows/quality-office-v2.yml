@@ -2,14 +2,16 @@ name: Office V2 Shadow Core QA
 
 on:
   push:
-    branches: [main, ai-office-v58-shadow-runtime]
+    branches: [main, ai-office-v59-shadow-hook]
     paths:
+      - 'src/bootstrap-v17.js'
       - 'src/office-v2/**'
       - 'tests/office-v2-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
       - '.github/workflows/quality-office-v2.yml'
   pull_request:
     paths:
+      - 'src/bootstrap-v17.js'
       - 'src/office-v2/**'
       - 'tests/office-v2-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
@@ -25,17 +27,19 @@ jobs:
         with:
           node-version: '24'
       - run: npm install --ignore-scripts
-      - name: Syntax check additive Office V2 core
+      - name: Syntax check Office V2 and canonical hook
         run: |
+          node --check src/bootstrap-v17.js
           node --check src/office-v2/contracts.js
           node --check src/office-v2/knowledge-gateway.js
           node --check src/office-v2/task-engine.js
           node --check src/office-v2/chief-of-staff.js
           node --check src/office-v2/legacy-bridge.js
           node --check src/office-v2/shadow-runtime.js
+          node --check src/office-v2/shadow-interceptor.js
           node --check src/office-v2/index.js
-      - name: Office V2 contract and shadow tests
-        run: node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs
+      - name: Office V2 contract, privacy and shadow-hook tests
+        run: node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs tests/office-v2-shadow-hook.test.mjs
       - name: Protect Phase 56 production contracts
         run: |
           node --test tests/ai-orchestrator-core-v32.test.mjs
