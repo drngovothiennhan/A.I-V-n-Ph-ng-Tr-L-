@@ -16,19 +16,20 @@ test('Office V2 production release remains candidate-first with exact-source gat
   assert.match(release,/cancel-in-progress: false/);
 });
 
-test('protected candidate smoke uses ephemeral automation bypass and revokes it before promotion',()=>{
-  assert.match(release,/\/v1\/projects\/\$VERCEL_PROJECT_ID\/protection-bypass/);
-  assert.match(release,/generate:\{secret:/);
-  assert.match(release,/x-vercel-protection-bypass:/);
-  assert.match(release,/x-vercel-set-bypass-cookie: true/);
+test('protected candidate smoke uses deployment-scoped share bypass and revokes it before promotion',()=>{
+  assert.match(release,/api\.vercel\.com\/aliases\/\$CANDIDATE_ID\/protection-bypass/);
+  assert.match(release,/--data '\{\"ttl\":900\}'/);
+  assert.match(release,/VERCEL_SHARE_BYPASS=\$SHARE_VALUE/);
+  assert.match(release,/_vercel_share=\$VERCEL_SHARE_BYPASS/);
   assert.match(release,/--location/);
   assert.match(release,/--cookie-jar "\$COOKIE_JAR" --cookie "\$COOKIE_JAR"/);
   assert.match(release,/--post301 --post302 --post303/);
   assert.match(release,/revoke:\{secret:process\.argv\[1\],regenerate:false\}/);
-  const revokeIndex=release.indexOf('Revoke ephemeral automation bypass');
+  const revokeIndex=release.indexOf('Revoke ephemeral deployment share bypass');
   const promoteIndex=release.indexOf('Promote verified candidate');
-  assert.ok(revokeIndex>0&&promoteIndex>revokeIndex,'ephemeral bypass must be revoked before promotion');
+  assert.ok(revokeIndex>0&&promoteIndex>revokeIndex,'deployment share bypass must be revoked before promotion');
   assert.doesNotMatch(release,/vercel curl/,'protected smoke must not depend on Vercel CLI user lookup');
+  assert.doesNotMatch(release,/\/v1\/projects\/\$VERCEL_PROJECT_ID\/protection-bypass/,'release must not mutate project-wide automation bypass');
 });
 
 test('Office V2 release retains legacy production regression gates and function budget',()=>{
