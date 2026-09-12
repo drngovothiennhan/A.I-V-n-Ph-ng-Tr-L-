@@ -46,4 +46,35 @@ assert.match(aggregateProbe, /reason: 'MANUAL_CHECK_REQUIRED'/,
 assert.doesNotMatch(aggregateProbe, /probeGemini\(\)|probeGeminiGrounding\(\)|probeXiaozhi\(\)|Promise\.all/,
   'aggregate provider diagnostics must not call Gemini, Grounding, XiaoZhi, or any aggregate provider promise');
 
-console.log('credential provider probe quota contract: PASS');
+assert.match(providerCheck, /function sameOriginDiagnosticRequest\(req\)/,
+  'paid provider diagnostics must have a same-origin request guard');
+assert.match(providerCheck, /req\.headers\?\.\['x-forwarded-host'\]/,
+  'same-origin diagnostic guard must bind to the serving host');
+assert.match(providerCheck, /req\.headers\?\.referer/,
+  'same-origin diagnostic guard must require an application referer');
+assert.match(providerCheck, /sec-fetch-site/,
+  'same-origin diagnostic guard must use browser Fetch Metadata when present');
+assert.match(providerCheck, /site && site !== 'same-origin'/,
+  'cross-site browser diagnostics must be rejected');
+assert.match(providerCheck, /mode && !\['cors', 'same-origin'\]\.includes\(mode\)/,
+  'top-level navigations/crawler-style requests must not be accepted as manual provider diagnostics');
+assert.match(providerCheck, /dest && dest !== 'empty'/,
+  'manual provider diagnostics must be fetch/XHR-like requests, not document/image navigation');
+const paidStart = providerCheck.indexOf("if (probe === 'gemini' || probe === 'gemini-grounding')");
+const xiaozhiStart = providerCheck.indexOf("if (probe === 'xiaozhi')", paidStart);
+assert.ok(paidStart >= 0 && xiaozhiStart > paidStart,
+  'paid Gemini diagnostics must have their own guarded branch');
+const paidBranch = providerCheck.slice(paidStart, xiaozhiStart);
+assert.match(paidBranch, /if \(!sameOriginDiagnosticRequest\(req\)\)/,
+  'paid Gemini diagnostics must validate same-origin before provider invocation');
+assert.match(paidBranch, /MANUAL_DIAGNOSTIC_SAME_ORIGIN_REQUIRED/,
+  'rejected paid diagnostics must fail explicitly before provider use');
+assert.match(paidBranch, /providerCallMade: false/,
+  'rejected paid diagnostics must disclose that no provider call was made');
+const guardPos = paidBranch.indexOf('sameOriginDiagnosticRequest(req)');
+const geminiCallPos = paidBranch.indexOf('probeGemini()');
+const groundingCallPos = paidBranch.indexOf('probeGeminiGrounding()');
+assert.ok(guardPos >= 0 && geminiCallPos > guardPos && groundingCallPos > guardPos,
+  'same-origin guard must execute before either paid Gemini provider call');
+
+console.log('credential provider probe quota + same-origin diagnostic contract: PASS');
