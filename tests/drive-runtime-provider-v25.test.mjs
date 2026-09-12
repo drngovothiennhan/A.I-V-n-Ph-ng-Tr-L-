@@ -35,8 +35,10 @@ assert.match(gateway, /providerCallMade:\s*false/, 'rejected Drive requests must
 const guardIndex = gateway.indexOf('sameOriginDriveRequest(req)');
 const delegateIndex = gateway.lastIndexOf('driveBrain(req, res)');
 assert.ok(guardIndex >= 0 && delegateIndex > guardIndex, 'same-origin guard must run before delegating to Drive provider code');
-const driveRewrite = (vercel.rewrites || []).find(item => item.source === '/api/drive-brain');
-assert.equal(driveRewrite?.destination, '/api/drive-brain-gateway', 'production /api/drive-brain must route through the secure gateway');
+const rewrite = (vercel.rewrites || []).find(item => item.source === '/api/drive-brain');
+const route = (vercel.routes || []).find(item => item.src === '/api/drive-brain');
+const destination = String(rewrite?.destination || route?.dest || '').replace(/\.ts(?=\?|$)/, '');
+assert.equal(destination, '/api/drive-brain-gateway', 'production /api/drive-brain must route through the secure gateway');
 
 assert.match(health, /service-account-readonly/, 'health must advertise readonly service-account fallback');
 assert.match(health, /providerPriority:\s*\['apps-script-bridge', 'service-account-readonly'\]/, 'health must expose deterministic provider priority');
