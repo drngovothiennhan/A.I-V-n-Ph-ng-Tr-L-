@@ -1,5 +1,59 @@
 # A.I. VĂN PHÒNG TRỢ LÝ — EXECUTION STATE
 
+Updated: 2026-09-12 — Phase 56 live, release verification repair in progress.
+
+## CURRENT_PHASE
+Phase 56 PRODUCTION VERIFIED for health and Office artifacts. Do not roll back or rebuild Phase 56 because historical release run 34676910385 failed.
+
+## SOURCE_STATE
+- main / live application source: `1c0d13708339e705ae2f10e5e363f8f51d01b0a3`.
+- Serving deployment: `dpl_65VBcfTe61MCEekGEZ9bEXaon1P5`.
+- Canonical URL: https://ai-van-phong-tro-ly.vercel.app
+- Project: `prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc`; team: `team_zMTBj85c4Dh5QoDNIjWqQRTg`.
+- Release CI and checkpoint changes live on `ai-office-phase56-promote`; they do not change the deployed application SHA. main is intentionally retained pending CI verification and a controlled docs/CI integration.
+
+## FRESH_RUNTIME_EVIDENCE
+- 2026-09-12T06:18:28Z: production HTTP 200, status ok, exact source header matches Phase 56.
+- GitHub main independently matches the same SHA; Vercel project independently identifies the same serving deployment.
+- 2026-09-12T06:19:39Z: POST selftest with exact header returns pass true, exact source, DOCX 4884 bytes, XLSX 6941 bytes, PPTX 12890 bytes.
+- 2026-09-12T06:20:29Z: identical marker with a phase56_smoke query also passes. A query-string header-loss hypothesis is not reproduced.
+- Release verifier executed locally against public production: PASS at attempt 1, checking response SHA/header and every Office format.
+- 2026-09-12T06:19:40Z: explicit `GET /api/health?probe=voice` reports gateway ready, release xiaozhi-render-gateway-1.2.0, trusted-origin.
+- Direct Render health at 2026-09-12T06:20:56Z reports `upstreamConfigured:false`, `upstreamMode:browser-fallback-transport`. Gateway reachability is NOT speech recognition / spoken-answer end-to-end success.
+
+## RELEASE_GATE_FINDINGS
+- Candidate run 34676809123 succeeded (historical evidence).
+- Release run 34676910385 actually sent the correct x-ai-office-selftest-source header, according to job 103508273115 logs. A claim that CI omitted the header is unsupported.
+- Historical 403 SELFTEST_RELEASE_MARKER_REQUIRED cannot distinguish absent expected env, absent request header, or mismatched SHA: the original handler intentionally returns the same body for all three. The old run lacks per-handler source/header diagnostics.
+- Current exact requests pass with and without query. Per-function post-promotion propagation is a hypothesis, not an established root cause.
+- Verified defect in workflow: it treats one health result as all-route convergence, performs one selftest attempt, then invokes rollback for any verification failure.
+- Repaired release verifier waits a bounded six attempts ONLY for work-free marker rejection, checking health exact-source each time. Persistent rejection, invalid result, wrong SHA, missing format or other error still FAIL. Handler/security gates are unchanged.
+- Phase 56 release workflow now verifies the already-live deployment ID/source, static UI/assets, Office engine, real Gemini and all gateways. It contains no deploy/promote/rollback call. A failed verification cannot move traffic.
+
+## RECOVERY_POLICY
+- Vercel team plan confirmed as Hobby. Official CLI docs: https://vercel.com/docs/cli/rollback — Hobby rollback target must be the immediately previous production deployment.
+- Old workflow hard-coded dpl_DfW8oQE4WTrsQTJxLVWtVmfi3sca and got 402; the old logs discarded the API error body. Plan/eligibility is consistent with the failure, but exact historical API reason is not recoverable from that log alone.
+- Do not substitute promote for an ineligible historical rollback or attempt to bypass a plan restriction.
+- Phase 56 verification requires no recovery action and now has none. For the next actual release, capture serving deployment ID + source immediately before promotion, use pinned Vercel CLI `vercel rollback <captured-immediate-previous-id> --token=...`, and independently verify public deployment ID, exact health source, and runtime smoke afterward. Never use a hard-coded older stable ID.
+- Actual rollback execution is NOT tested on this healthy production system.
+
+## PROVIDER_BOUNDARIES
+- Gemini configured: true; model gemini-3.8-flash; economy gemini-3.5-flash-lite. General questions default to Gemini; internal source remains opt-in.
+- Drive runtime configured: false; Workspace configured: false. Keep both feature-gated; no automatic local-upload fallback.
+- Drive provider priority: Apps Script bridge then Service Account readonly. Ground truth 02_APPROVED; blocked 00_INBOX and 07_ARCHIVE.
+- XiaoZhi gateway reachable; upstream not configured. Real microphone recognition and audible playback remain UNVERIFIED. Do not report voice end-to-end PASS.
+
+## NEXT_ACTIONS
+1. Run repaired CI against existing Phase 56 deployment; record new run ID and all actual outcomes.
+2. Preserve application source and no-traffic policy. Do not rerun the historical promotion job.
+3. Check live browser voice controls; report actual audio limitation honestly.
+4. If historical marker rejection recurs, retain response diagnostics; a next candidate may add non-sensitive handler reason codes without loosening the exact-source gate.
+
+---
+## HISTORICAL_STATE_BEFORE_PHASE_56 (superseded; not current blockers)
+
+# A.I. VĂN PHÒNG TRỢ LÝ — EXECUTION STATE
+
 Updated: 2026-09-12
 
 ## CURRENT_PHASE
