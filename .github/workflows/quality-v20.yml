@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version]
   workflow_dispatch:
 
 jobs:
@@ -69,6 +69,7 @@ jobs:
           node --check tests/vercel-research-route-v39.test.mjs
           node --check tests/gemini-economy-model-v40.test.mjs
           node --check tests/provider-smoke-contract-v41.test.mjs
+          node --check tests/xiaozhi-version-contract-v42.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -99,6 +100,8 @@ jobs:
         run: node tests/gemini-economy-model-v40.test.mjs
       - name: Provider smoke contract regression
         run: node tests/provider-smoke-contract-v41.test.mjs
+      - name: XiaoZhi version telemetry regression
+        run: node tests/xiaozhi-version-contract-v42.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
