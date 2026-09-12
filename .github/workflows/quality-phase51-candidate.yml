@@ -1,0 +1,43 @@
+name: Phase 51 Vercel TypeScript Candidate QA
+
+on:
+  push:
+    branches: [ai-office-phase51-vercel-typescript-build]
+
+jobs:
+  typescript-candidate:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Build compatibility regressions
+        run: |
+          node --check tests/vercel-typescript-build-v53.test.mjs
+          node tests/vercel-typescript-build-v53.test.mjs
+          node tests/vercel-research-route-v39.test.mjs
+          node tests/proxy-chief-resilience-v37.test.mjs
+          node tests/drive-runtime-provider-v25.test.mjs
+          node tests/artifact-engine-v24.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
+      - name: Require scoped deployment credential
+        run: test -n "$VERCEL_TOKEN"
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.7
+      - name: Deploy no-traffic production candidate
+        id: deploy
+        shell: bash
+        run: |
+          rm -rf .vercel
+          URL="$(vercel deploy --prod --skip-domain --yes --env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA")"
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "No-traffic candidate built: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "NO PROMOTION WAS REQUESTED." >> "$GITHUB_STEP_SUMMARY"
