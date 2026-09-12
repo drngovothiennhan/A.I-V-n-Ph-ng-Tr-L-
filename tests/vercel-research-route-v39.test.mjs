@@ -22,8 +22,8 @@ function canonicalDestination(value=''){
 const researchDestination=publicDestination('/api/research');
 assert.equal(canonicalDestination(researchDestination),'/api/research-gateway','/api/research must route through the secure gateway');
 assert.doesNotMatch(String(researchDestination||''),/research-v2[89]/,'secure /api/research route must never pin a legacy v28/v29 implementation');
-assert.match(researchGateway,/import research from '\.\/research'/,'secure research gateway must delegate to the stable research entrypoint');
-assert.doesNotMatch(researchGateway,/from ['"]\.\/research\.ts['"]/,'gateway import must remain TypeScript-build compatible');
+assert.match(researchGateway,/import research from '\.\/research\.js'/,'secure research gateway must use runtime-safe canonical research import');
+assert.doesNotMatch(researchGateway,/from ['"]\.\/research(?:\.ts)?['"]/,'gateway must never emit extensionless or .ts runtime import');
 assert.match(researchGateway,/function sameOriginRuntimeRequest\(req\)/,'research gateway must enforce same-origin request metadata');
 assert.match(researchGateway,/AI_RUNTIME_SAME_ORIGIN_REQUIRED/,'research gateway must reject cross-site/direct-browser runtime calls before provider access');
 assert.match(researchGateway,/providerCallMade:\s*false/,'rejected research requests must explicitly confirm no provider call was made');
@@ -54,4 +54,4 @@ assert.equal(response.body?.error,'LEGACY_RESEARCH_ROUTE_RETIRED');
 assert.equal(response.body?.canonicalEndpoint,'/api/research');
 assert.equal(response.body?.providerCallMade,false,'retired route must never invoke provider work');
 
-console.log('vercel-research-route-v39: secure /api/research keeps v31 while public versioned routes fail closed PASS');
+console.log('vercel-research-route-v56: secure /api/research uses runtime-safe gateway and legacy routes fail closed PASS');
