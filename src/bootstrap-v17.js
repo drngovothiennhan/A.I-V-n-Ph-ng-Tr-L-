@@ -23,11 +23,14 @@ await import('./interaction-runtime-v22.js?v=220');
 await import('./interaction-control-v21.js?v=211');
 
 // Office V2 task bridge mirrors canonical task lifecycle and attaches the Chief of Staff delegation contract.
-// Execution remains on the established production path until a later promotion gate explicitly moves it.
 const officeV2Tasks = await import('./office-v2/task-runtime-bridge.js?v=2100');
 officeV2Tasks.installOfficeV2TaskRuntimeBridge?.();
 const officeV2Workspace = await import('./office-v2/task-workspace.js?v=2100');
 officeV2Workspace.installOfficeV2TaskWorkspace?.();
+
+// UI V2 is a presentation island: it reuses all canonical IDs/handlers and never replaces business logic.
+const officeUIV2 = await import('./office-v2/ui-v2-shell.js?v=3000');
+officeUIV2.installAIOfficeUIV2?.();
 
 await import('./credential-setup-v22.js?v=230');
 await import('./product-completion-v24.js?v=240');
@@ -47,6 +50,7 @@ window.AIOfficeOfficeV2ShadowVersion='2.2.0-observe-only';
 window.AIOfficeOfficeV2ChiefDelegationVersion='2.10.0-chief-delegation';
 window.AIOfficeOfficeV2TaskBridgeVersion='2.10.0-chief-delegation-sync';
 window.AIOfficeOfficeV2TaskWorkspaceVersion='2.10.0-chief-delegation-cards';
+window.AIOfficeUIV2Version='3.0.0-production-shell';
 
 const status=document.getElementById('v19Status');
-if(status) status.textContent='Gemini-first · Nội bộ opt-in · Voice/Intent/Action ON';
+if(status) status.textContent='Chief of Staff · Gemini-first · Voice/Intent/Action ON';
