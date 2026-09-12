@@ -32,8 +32,13 @@ assert.match(health, /runtimeStatus: xiaozhiRuntimeStatus/,
 assert.match(health, /reason: 'EXPLICIT_VOICE_PROBE_REQUIRED'/,
   'passive voice telemetry must explain why live reachability is unknown');
 
+const legacyHealthRoute=(vercel.routes||[]).find(row=>row?.src==='/api/health-v17');
 const legacyHealthRewrite=(vercel.rewrites||[]).find(row=>row?.source==='/api/health-v17');
-assert.equal(legacyHealthRewrite?.destination,'/api/health-legacy-retired','legacy health-v17 must not remain a competing telemetry endpoint');
+const retiredDestination=legacyHealthRoute?.dest||legacyHealthRewrite?.destination||null;
+assert.ok(
+  retiredDestination==='/api/health-legacy-retired.ts'||retiredDestination==='/api/health-legacy-retired',
+  'legacy health-v17 must route only to the retired telemetry endpoint'
+);
 const response={statusCode:200,headers:{},body:null,setHeader(name,value){this.headers[String(name).toLowerCase()]=String(value)},status(code){this.statusCode=code;return this},json(body){this.body=body;return body}};
 await retiredHealth({method:'GET'},response);
 assert.equal(response.statusCode,410);
