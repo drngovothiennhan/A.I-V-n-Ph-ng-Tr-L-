@@ -2,7 +2,12 @@ name: Office V2 Shadow Core QA
 
 on:
   push:
-    branches: [ai-office-v57-office-core-v2]
+    branches: [main, ai-office-v58-shadow-runtime]
+    paths:
+      - 'src/office-v2/**'
+      - 'tests/office-v2-*.test.mjs'
+      - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
+      - '.github/workflows/quality-office-v2.yml'
   pull_request:
     paths:
       - 'src/office-v2/**'
@@ -27,9 +32,10 @@ jobs:
           node --check src/office-v2/task-engine.js
           node --check src/office-v2/chief-of-staff.js
           node --check src/office-v2/legacy-bridge.js
+          node --check src/office-v2/shadow-runtime.js
           node --check src/office-v2/index.js
-      - name: Office V2 contract tests
-        run: node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs
+      - name: Office V2 contract and shadow tests
+        run: node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs
       - name: Protect Phase 56 production contracts
         run: |
           node --test tests/ai-orchestrator-core-v32.test.mjs
