@@ -1,6 +1,7 @@
 const RELEASE = '1.9.3-autonomous-office-orchestrator';
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 const DEFAULT_XIAOZHI_WS = 'wss://ai-office-xiaozhi-gateway.onrender.com/xiaozhi/v1/';
+const XIAOZHI_VOICE_RENDER_VERSION = '2.3';
 
 function geminiModel() {
   return process.env.AI_OFFICE_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
@@ -95,7 +96,7 @@ async function probeXiaozhi() {
   };
   try {
     const response = await fetch(healthUrl, {
-      headers: { 'user-agent': 'AI-Office-XiaoZhi-Probe/3.0' },
+      headers: { 'user-agent': 'AI-Office-XiaoZhi-Probe/2.3' },
       signal: AbortSignal.timeout(9000)
     });
     if (!response.ok) return { ...base, pass: false, gatewayReachable: false, upstreamConnected: false, fallbackReady: true, status: response.status, reason: 'XIAOZHI_HEALTH_REJECTED' };
@@ -137,7 +138,7 @@ export default async function handler(req, res) {
       protocolVersion: process.env.XIAOZHI_PROTOCOL_VERSION || '1',
       stableIdentityConfigured: Boolean(process.env.XIAOZHI_CLIENT_ID && process.env.XIAOZHI_DEVICE_ID),
       browserFallback: true,
-      voiceRenderVersion: '3.0',
+      voiceRenderVersion: XIAOZHI_VOICE_RENDER_VERSION,
       readinessSemantics: 'https-health-probe-plus-browser-fallback',
       missing: []
     }
