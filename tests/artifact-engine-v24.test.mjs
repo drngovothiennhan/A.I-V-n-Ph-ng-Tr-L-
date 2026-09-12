@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createOfficeArtifact } from '../api/_office-artifacts.js';
 import { parseOfficeBuffer } from '../api/_office-ingest.js';
 
@@ -19,4 +20,33 @@ for (const format of formats) {
   assert.match(parsed, /A\.I Văn phòng|BÁO CÁO KIỂM THỬ|QA/, `${format}: round-trip content mismatch`);
 }
 
-console.log('artifact-engine-v24: DOCX/XLSX/PPTX round-trip PASS');
+const imageGateway = await readFile(new URL('../api/image-gateway.ts', import.meta.url), 'utf8');
+const ingestGateway = await readFile(new URL('../api/ingest-gateway.ts', import.meta.url), 'utf8');
+const vercel = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
+
+for (const [name, gateway, delegate] of [
+  ['image', imageGateway, 'image(req, res)'],
+  ['ingest', ingestGateway, 'ingest(req, res)']
+]) {
+  assert.match(gateway, /req\.method !== 'POST'/, `${name}: gateway must reject non-POST requests`);
+  assert.match(gateway, /application\/json/, `${name}: gateway must require JSON requests`);
+  assert.match(gateway, /function sameOriginResourceRequest\(req\)/, `${name}: gateway must enforce same-origin metadata`);
+  for (const marker of ['x-forwarded-host','referer','sec-fetch-site','sec-fetch-mode','sec-fetch-dest']) {
+    assert.ok(gateway.includes(marker), `${name}: gateway must inspect ${marker}`);
+  }
+  assert.match(gateway, /site && site !== 'same-origin'/, `${name}: cross-site requests must be rejected`);
+  assert.match(gateway, /AI_RESOURCE_SAME_ORIGIN_REQUIRED/, `${name}: rejection reason must be explicit`);
+  assert.match(gateway, /providerCallMade:\s*false/, `${name}: rejected requests must confirm no provider/runtime call`);
+  const guardIndex = gateway.indexOf('sameOriginResourceRequest(req)');
+  const delegateIndex = gateway.lastIndexOf(delegate);
+  assert.ok(guardIndex >= 0 && delegateIndex > guardIndex, `${name}: guard must execute before canonical handler`);
+}
+
+assert.match(imageGateway, /import image from '\.\/image\.ts'/, 'image gateway must delegate to canonical Gemini image handler');
+assert.match(ingestGateway, /import ingest from '\.\/ingest\.ts'/, 'ingest gateway must delegate to canonical Office parser handler');
+const imageRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/image');
+const ingestRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/ingest');
+assert.equal(imageRewrite?.destination, '/api/image-gateway', 'production /api/image must route through secure gateway');
+assert.equal(ingestRewrite?.destination, '/api/ingest-gateway', 'production /api/ingest must route through secure gateway');
+
+console.log('artifact-engine-v24: DOCX/XLSX/PPTX round-trip + image/ingest resource gateways PASS');
