@@ -46,9 +46,13 @@ assert.match(imageGateway, /import image from '\.\/image'/, 'image gateway must 
 assert.doesNotMatch(imageGateway, /from ['"]\.\/image\.ts['"]/,'image gateway import must remain TypeScript-build compatible');
 assert.match(ingestGateway, /import ingest from '\.\/ingest'/, 'ingest gateway must delegate to canonical Office parser handler');
 assert.doesNotMatch(ingestGateway, /from ['"]\.\/ingest\.ts['"]/,'ingest gateway import must remain TypeScript-build compatible');
-const imageRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/image');
-const ingestRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/ingest');
-assert.equal(imageRewrite?.destination, '/api/image-gateway', 'production /api/image must route through secure gateway');
-assert.equal(ingestRewrite?.destination, '/api/ingest-gateway', 'production /api/ingest must route through secure gateway');
+
+function destination(source){
+  const rewrite=(vercel.rewrites||[]).find(row=>row?.source===source);
+  const route=(vercel.routes||[]).find(row=>row?.src===source);
+  return String(rewrite?.destination||route?.dest||'').replace(/\.ts(?=\?|$)/,'');
+}
+assert.equal(destination('/api/image'), '/api/image-gateway', 'production /api/image must route through secure gateway');
+assert.equal(destination('/api/ingest'), '/api/ingest-gateway', 'production /api/ingest must route through secure gateway');
 
 console.log('artifact-engine-v24: DOCX/XLSX/PPTX round-trip + image/ingest resource gateways PASS');
