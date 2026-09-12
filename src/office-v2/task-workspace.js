@@ -1,11 +1,15 @@
 import { TASK_STATES, TERMINAL_TASK_STATES } from './contracts.js';
 
-export const OFFICE_V2_TASK_WORKSPACE_VERSION='2.9.0-job-cards';
+export const OFFICE_V2_TASK_WORKSPACE_VERSION='2.10.0-chief-delegation-cards';
 const MAX_VISIBLE_TASKS=6;
 const ACTIVE=new Set([
   TASK_STATES.RECEIVED,TASK_STATES.PLANNING,TASK_STATES.WAITING_PERMISSION,TASK_STATES.WAITING_INPUT,
   TASK_STATES.RUNNING,TASK_STATES.PAUSED,TASK_STATES.VERIFYING,TASK_STATES.CREATING_OUTPUT
 ]);
+const AGENT_LABEL=Object.freeze({
+  answer:'Trả lời',general:'Điều phối',qa:'QA',document:'Văn bản',data:'Dữ liệu',research:'Nghiên cứu',knowledge:'Kho nội bộ',communication:'Liên lạc',
+  'system-action':'Hệ thống','app-action':'Ứng dụng','voice-action':'Giọng nói'
+});
 
 const STATUS_LABEL=Object.freeze({
   [TASK_STATES.RECEIVED]:'Đã nhận',
@@ -45,6 +49,10 @@ function outputs(task){
   if(formats.length)return formats.map(x=>String(x).toUpperCase());
   return finite(task?.metadata?.outputCount,0)>0?['Sản phẩm']:[];
 }
+function agents(task){
+  const values=Array.isArray(task?.metadata?.delegation?.agents)?task.metadata.delegation.agents:[];
+  return values.filter(Boolean).slice(0,4).map(value=>AGENT_LABEL[value]||String(value));
+}
 
 export function buildTaskWorkspaceModel(tasks=[]){
   const sorted=(Array.isArray(tasks)?tasks:[]).filter(task=>task?.id).slice().sort((a,b)=>dateValue(b.updatedAt)-dateValue(a.updatedAt));
@@ -58,7 +66,8 @@ export function buildTaskWorkspaceModel(tasks=[]){
     progress:progressFor(task),
     updatedLabel:formatTime(task.updatedAt||task.createdAt),
     qaScore:Number.isFinite(Number(task?.metadata?.qaScore))?Number(task.metadata.qaScore):null,
-    formats:outputs(task),
+    formats:outputs(task),agents:agents(task),
+    knowledgeMode:task?.metadata?.delegation?.knowledgeMode||null,
     risk:task?.metadata?.risk||null,
     needsApproval:Boolean(task?.metadata?.needsApproval),
     active:isActive(task),
@@ -72,6 +81,7 @@ export function buildTaskWorkspaceModel(tasks=[]){
     active:sorted.filter(isActive).length,
     waitingApproval:sorted.filter(task=>task.status===TASK_STATES.WAITING_APPROVAL).length,
     completed:sorted.filter(task=>task.status===TASK_STATES.COMPLETED).length,
+    delegated:sorted.filter(task=>Array.isArray(task?.metadata?.delegation?.agents)&&task.metadata.delegation.agents.length>0).length,
     visible
   });
 }
@@ -82,7 +92,7 @@ function addStyle(){
   const style=document.createElement('style');style.id='ai-v2-task-workspace-style';style.textContent=`
 #aiV2TaskWorkspace{margin-top:10px;padding:13px 14px;background:#fff;border:1px solid var(--line,#e2e8f5);border-radius:17px;box-shadow:0 10px 30px #23366c0c}
 .aiV2TaskHead{display:flex;gap:10px;align-items:center;justify-content:space-between}.aiV2TaskHead h2{font-size:13px;margin:0}.aiV2TaskHead p{margin:3px 0 0;color:var(--mut,#6f7892);font-size:8.5px}.aiV2TaskSummary{white-space:nowrap;border:1px solid #dfe7f7;background:#f7f9ff;color:#50607f;border-radius:999px;padding:6px 9px;font:800 8px/1 system-ui}
-.aiV2TaskList{display:grid;gap:7px;margin-top:10px}.aiV2Job{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;border:1px solid #e2e8f5;border-radius:12px;padding:9px 10px;background:#fcfdff}.aiV2JobMain{min-width:0}.aiV2JobTop{display:flex;align-items:center;gap:7px;min-width:0}.aiV2JobTitle{font-size:9.5px;font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aiV2JobState{flex:0 0 auto;border-radius:999px;padding:4px 6px;background:#eef4ff;color:#3159ca;font:800 7px/1 system-ui}.aiV2JobState.wait{background:#fff5e9;color:#986016}.aiV2JobState.done{background:#eafaf3;color:#14764f}.aiV2JobState.stop{background:#fff1f3;color:#b33e50}.aiV2JobMeta{margin-top:5px;color:#77829a;font-size:7.5px}.aiV2JobBar{height:4px;background:#edf0f7;border-radius:99px;overflow:hidden;margin-top:6px}.aiV2JobBar i{display:block;height:100%;background:linear-gradient(90deg,#4e75ed,#66b8ff);border-radius:99px}.aiV2JobActions{display:flex;gap:5px;align-items:center}.aiV2JobBtn{border:1px solid #dce5f7;background:#fff;color:#3559be;border-radius:9px;padding:6px 7px;font:800 7.5px/1 system-ui;cursor:pointer}.aiV2JobBtn.danger{color:#b33e50;background:#fff5f6;border-color:#f0cbd1}.aiV2Empty{padding:8px 2px;color:#7a849b;font-size:8.5px}.aiV2TaskFoot{margin-top:8px;color:#8a93a7;font-size:7.5px}
+.aiV2TaskList{display:grid;gap:7px;margin-top:10px}.aiV2Job{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;border:1px solid #e2e8f5;border-radius:12px;padding:9px 10px;background:#fcfdff}.aiV2JobMain{min-width:0}.aiV2JobTop{display:flex;align-items:center;gap:7px;min-width:0}.aiV2JobTitle{font-size:9.5px;font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aiV2JobState{flex:0 0 auto;border-radius:999px;padding:4px 6px;background:#eef4ff;color:#3159ca;font:800 7px/1 system-ui}.aiV2JobState.wait{background:#fff5e9;color:#986016}.aiV2JobState.done{background:#eafaf3;color:#14764f}.aiV2JobState.stop{background:#fff1f3;color:#b33e50}.aiV2JobMeta{margin-top:5px;color:#77829a;font-size:7.5px}.aiV2Delegation{margin-top:5px;color:#425579;font-size:7.5px;font-weight:750}.aiV2JobBar{height:4px;background:#edf0f7;border-radius:99px;overflow:hidden;margin-top:6px}.aiV2JobBar i{display:block;height:100%;background:linear-gradient(90deg,#4e75ed,#66b8ff);border-radius:99px}.aiV2JobActions{display:flex;gap:5px;align-items:center}.aiV2JobBtn{border:1px solid #dce5f7;background:#fff;color:#3559be;border-radius:9px;padding:6px 7px;font:800 7.5px/1 system-ui;cursor:pointer}.aiV2JobBtn.danger{color:#b33e50;background:#fff5f6;border-color:#f0cbd1}.aiV2Empty{padding:8px 2px;color:#7a849b;font-size:8.5px}.aiV2TaskFoot{margin-top:8px;color:#8a93a7;font-size:7.5px}
 @media(max-width:700px){#aiV2TaskWorkspace{padding:11px}.aiV2Job{grid-template-columns:1fr}.aiV2JobActions{justify-content:flex-start}.aiV2TaskHead{align-items:flex-start}.aiV2TaskSummary{font-size:7px}.aiV2JobTitle{font-size:9px}}
 `;
   document.head.appendChild(style);
@@ -96,20 +106,25 @@ function metaText(task){
   if(task.risk==='high')parts.push('Rủi ro cao');
   return parts.join(' · ');
 }
+function delegationText(task){
+  if(!task.agents.length)return'Trưởng phòng A.I · đang xác lập phân công';
+  const knowledge=task.knowledgeMode&&task.knowledgeMode!=='NONE'?` · Nguồn ${task.knowledgeMode}`:'';
+  return `Trưởng phòng phân công: ${task.agents.join(' + ')}${knowledge}`;
+}
 function invokeStop(){return window.AIOfficeV21?.cancelRunningTask?.()}
 function invokeCancelApproval(){return window.AIOfficeV21?.cancelLatestApproval?.()}
 function openProducts(){document.getElementById('approve')?.scrollIntoView?.({behavior:'smooth',block:'start'})}
 
 function renderWorkspace(root,model){
   root.replaceChildren();
-  const head=el('div','aiV2TaskHead');const titleWrap=el('div');titleWrap.append(el('h2',null,'Công việc'),el('p',null,'Job Card · trạng thái được lưu liên tục trên thiết bị'));
+  const head=el('div','aiV2TaskHead');const titleWrap=el('div');titleWrap.append(el('h2',null,'Công việc'),el('p',null,'Trưởng phòng A.I phân công · Job Card được lưu liên tục trên thiết bị'));
   head.append(titleWrap,el('span','aiV2TaskSummary',`${model.active} đang làm · ${model.waitingApproval} chờ duyệt`));root.append(head);
   const list=el('div','aiV2TaskList');root.append(list);
   if(!model.visible.length){list.append(el('div','aiV2Empty','Chưa có công việc. Hãy giao việc cho Trưởng phòng A.I ở ô lệnh phía trên.'));return}
   for(const task of model.visible){
     const card=el('article','aiV2Job');card.dataset.taskId=task.id;
     const main=el('div','aiV2JobMain'),top=el('div','aiV2JobTop');top.append(el('span','aiV2JobState'+stateClass(task),task.statusLabel),el('div','aiV2JobTitle',task.title));
-    main.append(top,el('div','aiV2JobMeta',metaText(task)));
+    main.append(top,el('div','aiV2Delegation',delegationText(task)),el('div','aiV2JobMeta',metaText(task)));
     const bar=el('div','aiV2JobBar'),fill=el('i');fill.style.width=`${task.progress}%`;bar.append(fill);main.append(bar);
     const actions=el('div','aiV2JobActions');
     if(task.canOpenProduct){const b=el('button','aiV2JobBtn','Xem sản phẩm');b.type='button';b.onclick=openProducts;actions.append(b)}
@@ -138,7 +153,8 @@ export function installOfficeV2TaskWorkspace(){
   window.addEventListener('ai-office-v2-tasks-updated',render);
   window.addEventListener('ai-office-v2-task-bridge-ready',render);
   window.AIOfficeV2TaskWorkspace=Object.freeze({version:OFFICE_V2_TASK_WORKSPACE_VERSION,render,model:buildTaskWorkspaceModel});
-  void window.AIOfficeV2Tasks?.sync?.().finally?.(render);
+  const initialSync=window.AIOfficeV2Tasks?.sync?.();
+  if(initialSync&&typeof initialSync.finally==='function')void initialSync.finally(render);
   void render();
   return true;
 }
