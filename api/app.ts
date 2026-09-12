@@ -36,23 +36,31 @@ export default async function handler(req, res) {
       .replace(/1\.6\.0 DRIVE KNOWLEDGE BRAIN/g, `${RELEASE} AUTONOMOUS OFFICE ORCHESTRATOR`)
       .replace(/1\.7\.1 SECOND BRAIN/g, `${RELEASE} AUTONOMOUS OFFICE ORCHESTRATOR`)
       .replace(/1\.8\.0 CONTINUOUS SECOND BRAIN/g, `${RELEASE} AUTONOMOUS OFFICE ORCHESTRATOR`)
-      .replace('Mặc định sản phẩm: DOCX · XLSX · PPTX · PNG. Chỉ báo hoàn tất sau khi bạn duyệt.', 'Mặc định: trả lời hoặc kết quả công việc ngay trong hội thoại. Chỉ tạo file khi bạn yêu cầu rõ.');
+      .replace('Mặc định sản phẩm: DOCX · XLSX · PPTX · PNG. Chỉ báo hoàn tất sau khi bạn duyệt.', 'Mặc định: trả lời ngắn gọn. Chỉ tạo nhiệm vụ hoặc file khi bạn yêu cầu rõ.');
 
     html = html
+      .replace(/<script type="module" src="\/src\/canonical-input-gate-v71\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/bootstrap-v17\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/office-v2\/ui-v2-shell\.js(?:\?[^\"]*)?"><\/script>/g, '')
+      .replace(/<script type="module" src="\/src\/office-v2\/lean-dashboard-v72\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/bootstrap-v18\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/release-v193\.js(?:\?[^\"]*)?"><\/script>/g, '');
 
-    const uiPreload = '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">';
-    if (!html.includes('/src/office-v2/ui-v2-shell.js?v=3002')) {
-      html = html.includes('</head>') ? html.replace('</head>', `${uiPreload}</head>`) : `${uiPreload}${html}`;
+    const preloads = [
+      '<link rel="modulepreload" href="/src/canonical-input-gate-v71.js?v=711">',
+      '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">',
+      '<link rel="modulepreload" href="/src/office-v2/lean-dashboard-v72.js?v=3100">'
+    ].join('');
+    if (!html.includes('/src/canonical-input-gate-v71.js?v=711')) {
+      html = html.includes('</head>') ? html.replace('</head>', `${preloads}</head>`) : `${preloads}${html}`;
     }
 
+    const inputGate = '<script type="module" src="/src/canonical-input-gate-v71.js?v=711"></script>';
     const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>';
+    const leanUi = '<script type="module" src="/src/office-v2/lean-dashboard-v72.js?v=3100"></script>';
     const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
     const releaseSync = '<script type="module" src="/src/release-v193.js?v=193"></script>';
-    const runtimeScripts = `${earlyUi}${bootstrap}${releaseSync}`;
+    const runtimeScripts = `${inputGate}${earlyUi}${leanUi}${bootstrap}${releaseSync}`;
     html = html.includes('</body>') ? html.replace('</body>', `${runtimeScripts}</body>`) : `${html}${runtimeScripts}`;
     return res.status(200).send(html);
   } catch (error) {
