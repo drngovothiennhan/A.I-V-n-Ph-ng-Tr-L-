@@ -1,0 +1,34 @@
+name: Phase 49 Explicit Vercel Link QA
+
+on:
+  push:
+    branches: [ai-office-phase49-explicit-vercel-link]
+
+jobs:
+  explicit-vercel-link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check tests/deployment-vercel-link-v52.test.mjs
+          node --check tests/deployment-header-parser-v51.test.mjs
+          node --check tests/deployment-release-coherence-v45.test.mjs
+          node --check tests/deployment-promotion-gate-v46.test.mjs
+          node --check tests/deployment-rollback-recovery-v48.test.mjs
+      - name: Explicit Vercel link regression
+        run: node tests/deployment-vercel-link-v52.test.mjs
+      - name: Release header parser regression
+        run: node tests/deployment-header-parser-v51.test.mjs
+      - name: Release coherence regression
+        run: node tests/deployment-release-coherence-v45.test.mjs
+      - name: Candidate promotion regression
+        run: node tests/deployment-promotion-gate-v46.test.mjs
+      - name: Rollback recovery regression
+        run: node tests/deployment-rollback-recovery-v48.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
