@@ -1,9 +1,13 @@
-name: Phase 53 Scoped Production Release
+name: Office V2 Scoped Production Release
 
 on:
   push:
     branches: [main]
     paths:
+      - 'src/bootstrap-v17.js'
+      - 'src/office-v2/**'
+      - 'tests/office-v2-*.test.mjs'
+      - '.github/workflows/quality-office-v2.yml'
       - '.github/workflows/release-phase53-scoped-production.yml'
 
 permissions:
@@ -25,10 +29,14 @@ jobs:
       - name: Revalidate release-critical contracts
         run: |
           npm install --ignore-scripts
+          node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs tests/office-v2-shadow-hook.test.mjs
           node tests/source-policy-v20.test.mjs
           node tests/vercel-typescript-build-v53.test.mjs
           node tests/vercel-function-budget-v54.test.mjs
           node tests/artifact-engine-v24.test.mjs
+          node tests/ai-orchestrator-core-v32.test.mjs
+          node tests/proxy-chief-resilience-v37.test.mjs
+          node tests/vercel-gateway-esm-runtime-v56.test.mjs
           npm audit --omit=dev --audit-level=high
 
       - name: Require scoped deployment credential
@@ -208,7 +216,7 @@ jobs:
           PREVIOUS_SOURCE_COMMIT="${{ steps.previous.outputs.source_commit }}"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=phase53-post-promotion-smoke-failure"
+            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=office-v2-post-promotion-smoke-failure"
           RESTORED=0
           for attempt in $(seq 1 20); do
             curl --fail --silent --show-error \
