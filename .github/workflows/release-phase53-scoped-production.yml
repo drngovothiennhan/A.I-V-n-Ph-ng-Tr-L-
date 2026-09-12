@@ -30,7 +30,7 @@ jobs:
       - name: Revalidate release-critical contracts
         run: |
           npm install --ignore-scripts
-          node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs tests/office-v2-shadow-hook.test.mjs
+          node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs tests/office-v2-shadow-hook.test.mjs tests/office-v2-release-gate.test.mjs
           node tests/source-policy-v20.test.mjs
           node tests/provider-smoke-contract-v41.test.mjs
           node tests/vercel-typescript-build-v53.test.mjs
@@ -104,36 +104,73 @@ jobs:
           echo "id=$CANDIDATE_ID" >> "$GITHUB_OUTPUT"
           echo "Candidate built without traffic: $CANDIDATE_ID ($URL)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Candidate exact-source smoke through authenticated Vercel CLI
+      - name: Generate ephemeral automation bypass for protected candidate
+        id: bypass
+        shell: bash
+        run: |
+          BYPASS_SECRET="$(node -e "process.stdout.write(require('node:crypto').randomBytes(16).toString('hex'))")"
+          echo "::add-mask::$BYPASS_SECRET"
+          BODY="$(node -e "process.stdout.write(JSON.stringify({generate:{secret:process.argv[1],note:'Office V2 CI ephemeral candidate smoke'}}))" "$BYPASS_SECRET")"
+          curl --fail --silent --show-error --request PATCH \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "$BODY" \
+            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/protection-bypass-generate.json
+          node -e "const r=require('/tmp/protection-bypass-generate.json'); if(!r.protectionBypass) process.exit(1)"
+          echo "VERCEL_AUTOMATION_BYPASS_SECRET=$BYPASS_SECRET" >> "$GITHUB_ENV"
+          echo "Temporary automation bypass generated for candidate smoke." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Candidate exact-source smoke with ephemeral protection bypass
         shell: bash
         run: |
           URL="${{ steps.deploy.outputs.url }}"
-          vercel curl /api/health --deployment "$URL" --token="$VERCEL_TOKEN" -- \
-            --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
-            -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          BYPASS_HEADER="x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
+
+          curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
+            --header "$BYPASS_HEADER" \
+            -D /tmp/candidate-health.headers \
+            "$URL/api/health" -o /tmp/candidate-health.json
           node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1)"
           SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/candidate-health.headers | tail -1 | tr -d '\r')"
           [ "$SOURCE_COMMIT" = "$GITHUB_SHA" ]
 
-          vercel curl / --deployment "$URL" --token="$VERCEL_TOKEN" -- \
-            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
-            -D /tmp/candidate-ui.headers -o /tmp/candidate-ui.html
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            --header "$BYPASS_HEADER" \
+            -D /tmp/candidate-ui.headers \
+            "$URL/" -o /tmp/candidate-ui.html
           UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/candidate-ui.headers | tail -1 | tr -d '\r')"
           [ "$UI_SOURCE_REF" = "$GITHUB_SHA" ]
 
-          vercel curl /src/research-safety-guard-v263.js --deployment "$URL" --token="$VERCEL_TOKEN" -- \
-            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
-            -D /tmp/candidate-asset.headers -o /tmp/candidate-safety.js
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            --header "$BYPASS_HEADER" \
+            -D /tmp/candidate-asset.headers \
+            "$URL/src/research-safety-guard-v263.js" -o /tmp/candidate-safety.js
           ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/candidate-asset.headers | tail -1 | tr -d '\r')"
           [ "$ASSET_SOURCE_REF" = "$GITHUB_SHA" ]
           grep -q "2.6.3-client-research-safety-guard" /tmp/candidate-safety.js
 
-          vercel curl /api/selftest --deployment "$URL" --token="$VERCEL_TOKEN" -- \
-            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
-            --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
-            -o /tmp/candidate-selftest.json
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            --request POST \
+            --header "$BYPASS_HEADER" \
+            --header "x-ai-office-selftest-source: $GITHUB_SHA" \
+            "$URL/api/selftest" -o /tmp/candidate-selftest.json
           node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1)"
           echo "Candidate exact-source smoke PASS: $SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Revoke ephemeral automation bypass
+        if: always() && env.VERCEL_AUTOMATION_BYPASS_SECRET != ''
+        shell: bash
+        run: |
+          BODY="$(node -e "process.stdout.write(JSON.stringify({revoke:{secret:process.argv[1],regenerate:false}}))" "$VERCEL_AUTOMATION_BYPASS_SECRET")"
+          curl --fail --silent --show-error --request PATCH \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "$BODY" \
+            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/protection-bypass-revoke.json
+          echo "Temporary automation bypass revoked." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Promote verified candidate by scoped REST API
         id: promote
