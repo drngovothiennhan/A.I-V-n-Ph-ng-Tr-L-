@@ -1,5 +1,15 @@
-const SOURCE = 'https://raw.githubusercontent.com/drngovothiennhan/A.I-V-n-Ph-ng-Tr-L-/main/index.html';
+const OWNER = 'drngovothiennhan';
+const REPO = 'A.I-V-n-Ph-ng-Tr-L-';
 const RELEASE = '1.9.3';
+
+function sourceRef() {
+  const ref = String(process.env.AI_OFFICE_SOURCE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || '').trim();
+  return /^[0-9a-f]{40}$/i.test(ref) ? ref : 'main';
+}
+
+function sourceUrl(ref = sourceRef()) {
+  return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${ref}/index.html`;
+}
 
 function fallbackHtml(message = 'Đang khởi động A.I Văn phòng') {
   return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>A.I Văn phòng v${RELEASE}</title><style>body{font-family:system-ui;margin:0;display:grid;place-items:center;min-height:100vh;background:#f6f8ff;color:#152449}.box{background:#fff;border:1px solid #e2e8f5;border-radius:18px;padding:28px;max-width:560px;box-shadow:0 14px 40px #263d7717}h1{margin:0 0 10px;font-size:24px}p{color:#66708b}</style></head><body><div class="box"><h1>A.I Văn phòng v${RELEASE}</h1><p>${message}</p><p>Hệ thống sẽ tự tải lại.</p></div></body></html>`;
@@ -8,8 +18,10 @@ function fallbackHtml(message = 'Đang khởi động A.I Văn phòng') {
 export default async function handler(req, res) {
   res.setHeader('content-type', 'text/html; charset=utf-8');
   res.setHeader('cache-control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+  const ref = sourceRef();
+  res.setHeader('x-ai-office-ui-source-ref', ref);
   try {
-    const upstream = await fetch(SOURCE, {
+    const upstream = await fetch(sourceUrl(ref), {
       headers: { 'user-agent': `AI-Office-Vercel/${RELEASE}` },
       signal: AbortSignal.timeout(8000)
     });
