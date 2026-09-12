@@ -31,4 +31,19 @@ assert.doesNotMatch(autoOpen, /verifyGeminiGrounding|verifyDriveCanary/,
 assert.match(source, /\/api\/provider-check\?probe=gemini-grounding/,
   'manual Grounding diagnostic endpoint must remain available');
 
+const providerCheck = fs.readFileSync('api/provider-check.ts', 'utf8');
+const allStart = providerCheck.indexOf("if (probe === 'all')");
+const allEnd = providerCheck.indexOf("return json(res, 400", allStart);
+assert.ok(allStart >= 0 && allEnd > allStart,
+  'provider-check must keep an explicit aggregate probe branch');
+const aggregateProbe = providerCheck.slice(allStart, allEnd);
+assert.match(aggregateProbe, /probeMode: 'passive-config-only'/,
+  'aggregate provider diagnostics must be passive');
+assert.match(aggregateProbe, /providerCalls: 0/,
+  'aggregate provider diagnostics must declare zero provider calls');
+assert.match(aggregateProbe, /reason: 'MANUAL_CHECK_REQUIRED'/,
+  'aggregate provider diagnostics must represent unprobed state honestly');
+assert.doesNotMatch(aggregateProbe, /probeGemini\(\)|probeGeminiGrounding\(\)|probeXiaozhi\(\)|Promise\.all/,
+  'aggregate provider diagnostics must not call Gemini, Grounding, XiaoZhi, or any aggregate provider promise');
+
 console.log('credential provider probe quota contract: PASS');
