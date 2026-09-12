@@ -105,6 +105,7 @@ jobs:
             exit 1
           fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
           echo "id=$CANDIDATE_ID" >> "$GITHUB_OUTPUT"
           echo "Candidate built without traffic: $CANDIDATE_ID ($URL)" >> "$GITHUB_STEP_SUMMARY"
 
@@ -112,15 +113,33 @@ jobs:
         id: bypass
         shell: bash
         run: |
-          CANDIDATE_ID="${{ steps.deploy.outputs.id }}"
+          CANDIDATE_REF="${{ steps.deploy.outputs.host }}"
+          test -n "$CANDIDATE_REF"
           curl --fail --silent --show-error --request PATCH \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             --header "Content-Type: application/json" \
             --data '{"ttl":900}' \
-            "https://api.vercel.com/aliases/$CANDIDATE_ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
+            "https://api.vercel.com/aliases/$CANDIDATE_REF/protection-bypass?teamId=$VERCEL_ORG_ID" \
             -o /tmp/deployment-share-bypass.json
-          SHARE_VALUE="$(node -e "const r=require('/tmp/deployment-share-bypass.json');process.stdout.write(String(r.value||''))")"
-          test -n "$SHARE_VALUE"
+          SHARE_VALUE="$(node - <<'NODE'
+          const r=require('/tmp/deployment-share-bypass.json');
+          const pb=r?.value ?? r?.protectionBypass;
+          let value='';
+          if(typeof pb==='string') value=pb;
+          else if(pb && typeof pb==='object'){
+            if(typeof pb.value==='string') value=pb.value;
+            else if(typeof pb.secret==='string') value=pb.secret;
+            else {
+              const keys=Object.keys(pb).filter(Boolean);
+              if(keys.length===1) value=keys[0];
+            }
+          }
+          process.stdout.write(value);
+          NODE
+          )"
+          if [ -z "$SHARE_VALUE" ]; then
+            node -e "const r=require('/tmp/deployment-share-bypass.json'); console.error('Unsupported Vercel protection-bypass response keys:',Object.keys(r||{}).join(',')); process.exit(1)"
+          fi
           echo "::add-mask::$SHARE_VALUE"
           echo "VERCEL_SHARE_BYPASS=$SHARE_VALUE" >> "$GITHUB_ENV"
           echo "Temporary deployment share bypass generated for candidate smoke." >> "$GITHUB_STEP_SUMMARY"
@@ -169,13 +188,13 @@ jobs:
         if: always() && env.VERCEL_SHARE_BYPASS != ''
         shell: bash
         run: |
-          CANDIDATE_ID="${{ steps.deploy.outputs.id }}"
+          CANDIDATE_REF="${{ steps.deploy.outputs.host }}"
           BODY="$(node -e "process.stdout.write(JSON.stringify({revoke:{secret:process.argv[1],regenerate:false}}))" "$VERCEL_SHARE_BYPASS")"
           curl --fail --silent --show-error --request PATCH \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             --header "Content-Type: application/json" \
             --data "$BODY" \
-            "https://api.vercel.com/aliases/$CANDIDATE_ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
+            "https://api.vercel.com/aliases/$CANDIDATE_REF/protection-bypass?teamId=$VERCEL_ORG_ID" \
             -o /tmp/deployment-share-bypass-revoke.json
           echo "Temporary deployment share bypass revoked." >> "$GITHUB_STEP_SUMMARY"
 
