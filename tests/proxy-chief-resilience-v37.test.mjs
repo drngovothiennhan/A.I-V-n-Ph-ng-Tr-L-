@@ -15,7 +15,8 @@ assert.match(source,/return res\.status\(200\)\.json\(await chief\(req\.body\)\)
 assert.doesNotMatch(source,/signal: AbortSignal\.timeout\(30000\)/,'legacy 30s chief timeout must be removed');
 assert.doesNotMatch(source,/chief_provider_timeout[\s\S]{0,200}message\s*[:=]/,'timeout audit must not log user prompt/message');
 
-assert.match(gateway,/import proxy from '\.\/proxy\.ts'/,'secure proxy gateway must delegate to the canonical proxy handler');
+assert.match(gateway,/import proxy from '\.\/proxy'/,'secure proxy gateway must delegate to the canonical proxy handler');
+assert.doesNotMatch(gateway,/from ['"]\.\/proxy\.ts['"]/,'gateway import must remain TypeScript-build compatible');
 assert.match(gateway,/req\.method !== 'POST'/,'proxy gateway must reject non-POST requests');
 assert.match(gateway,/application\/json/,'proxy gateway must require JSON requests');
 assert.match(gateway,/function sameOriginRuntimeRequest\(req\)/,'proxy gateway must enforce same-origin request metadata');
