@@ -9,6 +9,7 @@
   },
   "rewrites": [
     { "source": "/", "destination": "/api/app" },
+    { "source": "/api/drive-brain", "destination": "/api/drive-brain-gateway" },
     { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
     { "source": "/sw.js", "destination": "/api/asset?path=public/sw.js" },
     { "source": "/icons/:path*", "destination": "/api/asset?path=public/icons/:path*" },
