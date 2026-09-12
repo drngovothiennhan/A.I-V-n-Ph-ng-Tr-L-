@@ -7,6 +7,7 @@ on:
       - 'api/app.ts'
       - 'src/bootstrap-v17.js'
       - 'src/release-v193.js'
+      - 'src/canonical-input-gate-v71.js'
       - 'src/office-v2/**'
       - 'tests/office-v2-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
@@ -17,6 +18,7 @@ on:
       - 'api/app.ts'
       - 'src/bootstrap-v17.js'
       - 'src/release-v193.js'
+      - 'src/canonical-input-gate-v71.js'
       - 'src/office-v2/**'
       - 'tests/office-v2-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
@@ -37,6 +39,7 @@ jobs:
         run: |
           node --check src/bootstrap-v17.js
           node --check src/release-v193.js
+          node --check src/canonical-input-gate-v71.js
           node --check src/office-v2/contracts.js
           node --check src/office-v2/knowledge-gateway.js
           node --check src/office-v2/task-engine.js
@@ -44,6 +47,7 @@ jobs:
           node --check src/office-v2/task-runtime-bridge.js
           node --check src/office-v2/task-workspace.js
           node --check src/office-v2/ui-v2-shell.js
+          node --check src/office-v2/lean-dashboard-v72.js
           node --check src/office-v2/chief-of-staff.js
           node --check src/office-v2/legacy-bridge.js
           node --check src/office-v2/shadow-runtime.js

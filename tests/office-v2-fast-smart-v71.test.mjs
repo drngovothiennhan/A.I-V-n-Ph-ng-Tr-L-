@@ -32,10 +32,14 @@ test('direct command still executes as data task',()=>{
   assert.ok(canonical.artifactFormats.includes('xlsx'));
 });
 
-test('UI V2 is preloaded and inserted before legacy bootstrap',()=>{
+test('UI V2 is preloaded and canonical gate executes before legacy bootstrap',()=>{
   assert.match(app,/rel="modulepreload" href="\/src\/office-v2\/ui-v2-shell\.js\?v=3002"/);
-  const runtime=app.match(/const runtimeScripts = `\$\{earlyUi\}\$\{bootstrap\}\$\{releaseSync\}`/);
-  assert.ok(runtime,'UI must execute before bootstrap and release runtime');
+  const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
+  const ui=app.indexOf("await import('/src/office-v2/ui-v2-shell.js?v=3002')");
+  const lean=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3100')");
+  const bootstrap=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
+  const sync=app.indexOf("await import('/src/release-v193.js?v=193')");
+  assert.ok(gate>=0&&ui>gate&&lean>ui&&bootstrap>lean&&sync>bootstrap,'canonical gate and UI must execute before legacy bootstrap/release');
   assert.match(release,/ui-v2-shell\.js\?v=3002/);
   assert.doesNotMatch(release,/ui-v2-shell\.js\?v=3001/);
 });
