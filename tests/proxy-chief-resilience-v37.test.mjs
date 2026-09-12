@@ -15,8 +15,8 @@ assert.match(source,/return res\.status\(200\)\.json\(await chief\(req\.body\)\)
 assert.doesNotMatch(source,/signal: AbortSignal\.timeout\(30000\)/,'legacy 30s chief timeout must be removed');
 assert.doesNotMatch(source,/chief_provider_timeout[\s\S]{0,200}message\s*[:=]/,'timeout audit must not log user prompt/message');
 
-assert.match(gateway,/import proxy from '\.\/proxy'/,'secure proxy gateway must delegate to the canonical proxy handler');
-assert.doesNotMatch(gateway,/from ['"]\.\/proxy\.ts['"]/,'gateway import must remain TypeScript-build compatible');
+assert.match(gateway,/import proxy from '\.\/proxy\.js'/,'secure proxy gateway must use runtime-safe canonical proxy import');
+assert.doesNotMatch(gateway,/from ['"]\.\/proxy(?:\.ts)?['"]/,'gateway must never emit extensionless or .ts runtime import');
 assert.match(gateway,/req\.method !== 'POST'/,'proxy gateway must reject non-POST requests');
 assert.match(gateway,/application\/json/,'proxy gateway must require JSON requests');
 assert.match(gateway,/function sameOriginRuntimeRequest\(req\)/,'proxy gateway must enforce same-origin request metadata');
@@ -35,4 +35,4 @@ const route=(vercel.routes||[]).find(row=>row?.src==='/api/proxy');
 const destination=String(rewrite?.destination||route?.dest||'').replace(/\.ts(?=\?|$)/,'');
 assert.equal(destination,'/api/proxy-gateway','production /api/proxy must route through the secure runtime gateway');
 
-console.log('proxy-chief-resilience-v37: bounded timeout + honest fallback + same-origin runtime gateway PASS');
+console.log('proxy-chief-resilience-v56: bounded timeout + runtime-safe same-origin proxy gateway PASS');
