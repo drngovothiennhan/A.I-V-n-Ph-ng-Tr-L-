@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
   "env": {
     "AI_OFFICE_GEMINI_MODEL": "gemini-3.8-flash",
     "AI_OFFICE_GEMINI_ECONOMY_MODEL": "gemini-3.5-flash-lite",
@@ -21,46 +20,25 @@
     { "src": "api/research-legacy-retired.ts", "use": "@vercel/node" },
     { "src": "api/selftest.ts", "use": "@vercel/node" }
   ],
-  "rewrites": [
-    { "source": "/", "destination": "/api/app" },
-    { "source": "/api/health-v17", "destination": "/api/health-legacy-retired" },
-    { "source": "/api/ws-xiaozhi", "destination": "/api/research-legacy-retired?kind=voice" },
-    { "source": "/api/drive-brain", "destination": "/api/drive-brain-gateway" },
-    { "source": "/api/research", "destination": "/api/research-gateway" },
-    { "source": "/api/research-v28", "destination": "/api/research-legacy-retired" },
-    { "source": "/api/research-v29", "destination": "/api/research-legacy-retired" },
-    { "source": "/api/research-v30", "destination": "/api/research-legacy-retired" },
-    { "source": "/api/research-v31", "destination": "/api/research-legacy-retired" },
-    { "source": "/api/proxy", "destination": "/api/proxy-gateway" },
-    { "source": "/api/image", "destination": "/api/image-gateway" },
-    { "source": "/api/ingest", "destination": "/api/ingest-gateway" },
-    { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
-    { "source": "/sw.js", "destination": "/api/asset?path=public/sw.js" },
-    { "source": "/icons/:path*", "destination": "/api/asset?path=public/icons/:path*" },
-    { "source": "/src/:path*", "destination": "/api/asset?path=src/:path*" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(self), geolocation=(self)" }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "Service-Worker-Allowed", "value": "/" }
-      ]
-    },
-    {
-      "source": "/manifest.webmanifest",
-      "headers": [
-        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }
-      ]
-    }
+  "routes": [
+    { "src": "/", "dest": "/api/app.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/health", "dest": "/api/health.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/provider-check", "dest": "/api/provider-check.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/selftest", "dest": "/api/selftest.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/health-v17", "dest": "/api/health-legacy-retired.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/ws-xiaozhi", "dest": "/api/research-legacy-retired.ts?kind=voice", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/drive-brain", "dest": "/api/drive-brain-gateway.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/research", "dest": "/api/research-gateway.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/research-v28", "dest": "/api/research-legacy-retired.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/research-v29", "dest": "/api/research-legacy-retired.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/research-v30", "dest": "/api/research-legacy-retired.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/research-v31", "dest": "/api/research-legacy-retired.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/proxy", "dest": "/api/proxy-gateway.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/image", "dest": "/api/image-gateway.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/api/ingest", "dest": "/api/ingest-gateway.ts", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/manifest.webmanifest", "dest": "/api/asset.ts?path=public/manifest.webmanifest", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)", "Content-Type": "application/manifest+json; charset=utf-8" } },
+    { "src": "/sw.js", "dest": "/api/asset.ts?path=public/sw.js", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)", "Cache-Control": "public, max-age=0, must-revalidate", "Service-Worker-Allowed": "/" } },
+    { "src": "/icons/(.*)", "dest": "/api/asset.ts?path=public/icons/$1", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } },
+    { "src": "/src/(.*)", "dest": "/api/asset.ts?path=src/$1", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)" } }
   ]
 }
