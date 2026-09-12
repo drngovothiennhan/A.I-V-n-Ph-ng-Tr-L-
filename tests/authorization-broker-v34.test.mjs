@@ -18,10 +18,12 @@ assert.match(auth,/!detail\.internalOptIn\|\|detail\?\.drive\?\.configured/,'Dri
 assert.doesNotMatch(auth,/API_KEY\s*=/,'broker must not hard-code provider secrets');
 assert.doesNotMatch(auth,/localStorage\.setItem\([^,]+,\s*.*token/i,'broker must not persist service tokens');
 
-assert.match(credentials,/groundingVerified=Boolean\(s\.gemini&&grounding\?\.pass\)/,'Gemini grounding must be separately verified from configured state');
-assert.match(credentials,/Gemini cơ bản có thể hoạt động nhưng Google Search Grounding chưa PASS/,'UI must expose degraded grounding state');
+assert.match(credentials,/groundingVerified=Boolean\(deep&&s\.gemini&&grounding\?\.pass\)/,'Gemini grounding must require an explicit deep probe in addition to configured state and probe success');
+assert.match(credentials,/refreshPopup\(\{deep:false\}\)/,'opening or cheap refresh must remain health-only and quota-safe');
+assert.match(credentials,/refreshPopup\(\{deep:true\}\)/,'manual deep provider verification must remain available');
+assert.match(credentials,/Gemini cơ bản có thể hoạt động nhưng Google Search Grounding chưa PASS/,'UI must expose degraded grounding state after an explicit failed probe');
 assert.match(interaction,/permissionPopup/,'browser/device permission popup must remain intact');
 assert.match(release,/authorization-broker-v34\.js\?v=340/,'release must boot authorization broker');
 assert.match(release,/window\.AIOfficeAuthorizationVersion = AUTHORIZATION/,'release must expose authorization version');
 
-console.log('authorization-broker-v34: least privilege + honest readiness + existing popup reuse PASS');
+console.log('authorization-broker-v34: least privilege + honest readiness + explicit provider verification PASS');
