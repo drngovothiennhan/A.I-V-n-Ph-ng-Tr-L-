@@ -1,0 +1,203 @@
+name: Phase 53 Scoped Production Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-phase53-scoped-production.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-production-release:
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Revalidate release-critical contracts
+        run: |
+          npm install --ignore-scripts
+          node tests/source-policy-v20.test.mjs
+          node tests/vercel-typescript-build-v53.test.mjs
+          node tests/vercel-function-budget-v54.test.mjs
+          node tests/artifact-engine-v24.test.mjs
+          npm audit --omit=dev --audit-level=high
+
+      - name: Require scoped deployment credential
+        shell: bash
+        run: |
+          test -n "$VERCEL_TOKEN"
+          echo "Scoped deployment credential present." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Capture current production deployment
+        id: previous
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/previous-deployment.json
+          PREVIOUS_ID="$(node -e "const d=require('/tmp/previous-deployment.json');process.stdout.write(String(d.id||''))")"
+          PREVIOUS_URL="$(node -e "const d=require('/tmp/previous-deployment.json');process.stdout.write(String(d.url||''))")"
+          if [[ ! "$PREVIOUS_ID" =~ ^dpl_ ]] || [ -z "$PREVIOUS_URL" ]; then
+            echo "::error::Could not resolve currently serving production deployment."
+            exit 1
+          fi
+          curl --fail --silent --show-error -D /tmp/previous-health.headers \
+            https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/previous-health.json
+          PREVIOUS_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/previous-health.headers | tail -1 | tr -d '\r')"
+          echo "id=$PREVIOUS_ID" >> "$GITHUB_OUTPUT"
+          echo "url=https://$PREVIOUS_URL" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$PREVIOUS_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "Captured production: $PREVIOUS_ID, source=${PREVIOUS_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.7
+
+      - name: Bind verified Vercel project deterministically
+        shell: bash
+        run: |
+          rm -rf .vercel
+          mkdir -p .vercel
+          node - <<'NODE'
+          const fs=require('fs');
+          const payload={orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID};
+          fs.writeFileSync('.vercel/project.json', JSON.stringify(payload));
+          NODE
+          node -e "const p=require('./.vercel/project.json'); if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID) process.exit(1); console.log('deterministic project binding verified:',p.projectId,p.orgId)"
+
+      - name: Deploy production-environment candidate without traffic
+        id: deploy
+        shell: bash
+        run: |
+          URL="$(vercel deploy --prod --skip-domain --yes --env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA" --token="$VERCEL_TOKEN")"
+          test -n "$URL"
+          HOST="${URL#https://}"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$HOST?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/candidate-deployment.json
+          CANDIDATE_ID="$(node -e "const d=require('/tmp/candidate-deployment.json');process.stdout.write(String(d.id||''))")"
+          if [[ ! "$CANDIDATE_ID" =~ ^dpl_ ]]; then
+            echo "::error::Candidate deployment ID could not be resolved."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "id=$CANDIDATE_ID" >> "$GITHUB_OUTPUT"
+          echo "Candidate built without traffic: $CANDIDATE_ID ($URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Candidate exact-source smoke
+        shell: bash
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          vercel curl /api/health --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
+            -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
+          node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1)"
+          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/candidate-health.headers | tail -1 | tr -d '\r')"
+          [ "$SOURCE_COMMIT" = "$GITHUB_SHA" ]
+
+          vercel curl / --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/candidate-ui.headers -o /tmp/candidate-ui.html
+          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/candidate-ui.headers | tail -1 | tr -d '\r')"
+          [ "$UI_SOURCE_REF" = "$GITHUB_SHA" ]
+
+          vercel curl /src/research-safety-guard-v263.js --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/candidate-asset.headers -o /tmp/candidate-safety.js
+          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/candidate-asset.headers | tail -1 | tr -d '\r')"
+          [ "$ASSET_SOURCE_REF" = "$GITHUB_SHA" ]
+          grep -q "2.6.3-client-research-safety-guard" /tmp/candidate-safety.js
+
+          vercel curl /api/selftest --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/candidate-selftest.json
+          node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1)"
+          echo "Candidate exact-source smoke PASS: $SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Promote verified candidate by scoped REST API
+        id: promote
+        shell: bash
+        run: |
+          CANDIDATE_ID="${{ steps.deploy.outputs.id }}"
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$CANDIDATE_ID?teamId=$VERCEL_ORG_ID"
+          PROMOTED=0
+          for attempt in $(seq 1 30); do
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
+              -o /tmp/current-production.json || true
+            CURRENT_ID="$(node -e "try{const d=require('/tmp/current-production.json');process.stdout.write(String(d.id||''))}catch{process.stdout.write('')}" )"
+            if [ "$CURRENT_ID" = "$CANDIDATE_ID" ]; then
+              PROMOTED=1
+              break
+            fi
+            sleep 3
+          done
+          [ "$PROMOTED" = "1" ]
+          echo "Verified candidate promoted: $CANDIDATE_ID" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post-promotion production smoke
+        id: production-smoke
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
+            -D /tmp/health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/health.json
+          node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1)"
+          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/health.headers | tail -1 | tr -d '\r')"
+          [ "$SOURCE_COMMIT" = "$GITHUB_SHA" ]
+
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/ui.headers https://ai-van-phong-tro-ly.vercel.app/ -o /tmp/ui.html
+          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/ui.headers | tail -1 | tr -d '\r')"
+          [ "$UI_SOURCE_REF" = "$GITHUB_SHA" ]
+
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/asset.headers https://ai-van-phong-tro-ly.vercel.app/src/research-safety-guard-v263.js -o /tmp/safety.js
+          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/asset.headers | tail -1 | tr -d '\r')"
+          [ "$ASSET_SOURCE_REF" = "$GITHUB_SHA" ]
+          grep -q "2.6.3-client-research-safety-guard" /tmp/safety.js
+
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
+            https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
+          node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1)"
+          echo "Production exact-source smoke PASS: $SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Roll back failed promotion
+        if: failure() && steps.promote.outcome == 'success' && steps.previous.outputs.id != ''
+        shell: bash
+        run: |
+          PREVIOUS_ID="${{ steps.previous.outputs.id }}"
+          PREVIOUS_SOURCE_COMMIT="${{ steps.previous.outputs.source_commit }}"
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=phase53-post-promotion-smoke-failure"
+          RESTORED=0
+          for attempt in $(seq 1 20); do
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
+              -o /tmp/rollback-current.json || true
+            CURRENT_ID="$(node -e "try{const d=require('/tmp/rollback-current.json');process.stdout.write(String(d.id||''))}catch{process.stdout.write('')}" )"
+            if [ "$CURRENT_ID" = "$PREVIOUS_ID" ]; then RESTORED=1; break; fi
+            sleep 3
+          done
+          [ "$RESTORED" = "1" ]
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/rollback-health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/rollback-health.json
+          ROLLBACK_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/rollback-health.headers | tail -1 | tr -d '\r')"
+          if [ -n "$PREVIOUS_SOURCE_COMMIT" ] && [ "$PREVIOUS_SOURCE_COMMIT" != "unknown" ] && [ "$ROLLBACK_SOURCE_COMMIT" != "$PREVIOUS_SOURCE_COMMIT" ]; then exit 1; fi
+          echo "Rollback restored: $PREVIOUS_ID source=${ROLLBACK_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
