@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback, ai-office-phase33-canonical-quota-gate]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback, ai-office-phase33-canonical-quota-gate, ai-office-phase34-gemini-config-gate]
   workflow_dispatch:
 
 jobs:
@@ -76,6 +76,7 @@ jobs:
           node --check tests/deployment-promotion-gate-v46.test.mjs
           node --check tests/credential-probe-quota-v47.test.mjs
           node --check tests/deployment-rollback-recovery-v48.test.mjs
+          node --check tests/deployment-gemini-config-v49.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -120,6 +121,8 @@ jobs:
         run: node tests/credential-probe-quota-v47.test.mjs
       - name: Post-promotion rollback recovery regression
         run: node tests/deployment-rollback-recovery-v48.test.mjs
+      - name: Gemini configuration release gate regression
+        run: node tests/deployment-gemini-config-v49.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -194,7 +197,7 @@ jobs:
         run: |
           URL="${{ steps.deploy.outputs.url }}"
           vercel curl /api/health --deployment "$URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
-          node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('candidate health/provider ok:',h.productCompletion,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
+          node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('candidate health/provider ok:',h.productCompletion,h.providers?.gemini?.configured,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
           SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/candidate-health.headers | tail -1)"
           if [ "$SOURCE_COMMIT" != "$GITHUB_SHA" ]; then
             echo "::error::Candidate source mismatch. expected=$GITHUB_SHA actual=${SOURCE_COMMIT:-missing}"
@@ -231,7 +234,7 @@ jobs:
         shell: bash
         run: |
           curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 -D /tmp/health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/health.json
-          node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('production health/provider ok:',h.productCompletion,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
+          node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('production health/provider ok:',h.productCompletion,h.providers?.gemini?.configured,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
           SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/health.headers | tail -1)"
           if [ "$SOURCE_COMMIT" != "$GITHUB_SHA" ]; then
             echo "::error::Production source mismatch. expected=$GITHUB_SHA actual=${SOURCE_COMMIT:-missing}"
