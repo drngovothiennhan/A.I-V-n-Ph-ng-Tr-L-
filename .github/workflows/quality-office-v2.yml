@@ -35,6 +35,7 @@ jobs:
           node --check src/office-v2/contracts.js
           node --check src/office-v2/knowledge-gateway.js
           node --check src/office-v2/task-engine.js
+          node --check src/office-v2/chief-delegation.js
           node --check src/office-v2/task-runtime-bridge.js
           node --check src/office-v2/task-workspace.js
           node --check src/office-v2/chief-of-staff.js
