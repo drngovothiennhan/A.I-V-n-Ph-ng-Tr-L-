@@ -151,7 +151,7 @@ jobs:
 
   deploy-production:
     needs: source-policy
-    if: github.ref == 'refs/heads/main'
+    if: ${{ false }} # Phase 66: retired legacy deploy path; canonical production release is release-phase53-scoped-production.yml
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
