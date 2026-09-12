@@ -1,4 +1,4 @@
-import ingest from './ingest';
+import ingest from './ingest.js';
 
 function json(res, status, body) {
   res.setHeader('cache-control', 'no-store');
