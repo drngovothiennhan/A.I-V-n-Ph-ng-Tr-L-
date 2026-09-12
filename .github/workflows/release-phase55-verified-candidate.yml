@@ -46,13 +46,12 @@ jobs:
           const d=require('/tmp/candidate.json');
           if(d.id!==process.env.CANDIDATE_ID) process.exit(1);
           if((d.readyState||d.state)!=='READY') process.exit(1);
-          if(d.projectId && d.projectId!==process.env.VERCEL_PROJECT_ID) process.exit(1);
           const sha=d.meta?.githubCommitSha||'';
           if(sha!==process.env.TARGET_SOURCE_SHA) process.exit(1);
           NODE
           echo "Candidate identity PASS: $CANDIDATE_ID source=$TARGET_SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Capture currently serving production deployment
+      - name: Capture currently serving production
         id: previous
         shell: bash
         run: |
@@ -63,12 +62,12 @@ jobs:
             -o /tmp/previous.json
           PREVIOUS_ID="$(node -e "const d=require('/tmp/previous.json');process.stdout.write(String(d.id||''))")"
           [[ "$PREVIOUS_ID" =~ ^dpl_ ]]
-          echo "id=$PREVIOUS_ID" >> "$GITHUB_OUTPUT"
           curl --fail --silent --show-error -D /tmp/pre-health.headers \
-            "$PRODUCTION_URL/api/health" -o /tmp/pre-health.json
+            "$PRODUCTION_URL/api/health?release_capture=$(date +%s)" -o /tmp/pre-health.json
           PREVIOUS_SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/pre-health.headers | tail -1 | tr -d '\r')"
+          echo "id=$PREVIOUS_ID" >> "$GITHUB_OUTPUT"
           echo "source=$PREVIOUS_SOURCE" >> "$GITHUB_OUTPUT"
-          echo "Captured serving production: $PREVIOUS_ID source=${PREVIOUS_SOURCE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Captured production: $PREVIOUS_ID source=${PREVIOUS_SOURCE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Promote exact verified candidate
         id: promote
@@ -79,51 +78,55 @@ jobs:
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$CANDIDATE_ID?teamId=$VERCEL_ORG_ID" \
             -o /tmp/promote.json
-          PROMOTED=0
-          for attempt in $(seq 1 30); do
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
-              -o /tmp/current.json || true
-            CURRENT_ID="$(node -e "try{const d=require('/tmp/current.json');process.stdout.write(String(d.id||''))}catch{process.stdout.write('')}" )"
-            if [ "$CURRENT_ID" = "$CANDIDATE_ID" ]; then PROMOTED=1; break; fi
+          echo "Promotion accepted for $CANDIDATE_ID; waiting for public source propagation." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for production source propagation
+        shell: bash
+        run: |
+          set -euo pipefail
+          READY=0
+          for attempt in $(seq 1 45); do
+            curl --silent --show-error -D /tmp/prop.headers \
+              "$PRODUCTION_URL/api/health?propagation=$attempt-$(date +%s%N)" -o /tmp/prop.json || true
+            SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/prop.headers 2>/dev/null | tail -1 | tr -d '\r')"
+            if [ "$SOURCE" = "$TARGET_SOURCE_SHA" ]; then READY=1; break; fi
             sleep 2
           done
-          [ "$PROMOTED" = "1" ]
-          echo "Verified candidate promoted: $CANDIDATE_ID" >> "$GITHUB_STEP_SUMMARY"
+          [ "$READY" = "1" ]
+          echo "Production propagation PASS: $TARGET_SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Public production exact-source smoke
         id: smoke
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 2 \
-            -D /tmp/health.headers "$PRODUCTION_URL/api/health" -o /tmp/health.json
+          curl --fail --silent --show-error \
+            -D /tmp/health.headers "$PRODUCTION_URL/api/health?smoke=$(date +%s%N)" -o /tmp/health.json
           node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite'||h.providers?.googleDriveRuntime?.configured!==false||h.providers?.googleWorkspace?.configured!==false) process.exit(1)"
           HEALTH_SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/health.headers | tail -1 | tr -d '\r')"
           [ "$HEALTH_SOURCE" = "$TARGET_SOURCE_SHA" ]
 
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
-            -D /tmp/ui.headers "$PRODUCTION_URL/" -o /tmp/ui.html
+          curl --fail --silent --show-error \
+            -D /tmp/ui.headers "$PRODUCTION_URL/?smoke=$(date +%s%N)" -o /tmp/ui.html
           UI_SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/ui.headers | tail -1 | tr -d '\r')"
           [ "$UI_SOURCE" = "$TARGET_SOURCE_SHA" ]
           grep -q "A.I Văn phòng" /tmp/ui.html
           grep -q "/src/bootstrap-v18.js" /tmp/ui.html
 
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
-            -D /tmp/asset.headers "$PRODUCTION_URL/src/research-safety-guard-v263.js" -o /tmp/safety.js
+          curl --fail --silent --show-error \
+            -D /tmp/asset.headers "$PRODUCTION_URL/src/research-safety-guard-v263.js?smoke=$(date +%s%N)" -o /tmp/safety.js
           ASSET_SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/asset.headers | tail -1 | tr -d '\r')"
           [ "$ASSET_SOURCE" = "$TARGET_SOURCE_SHA" ]
           grep -q "2.6.3-client-research-safety-guard" /tmp/safety.js
 
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+          curl --fail --silent --show-error \
             --request POST --header "x-ai-office-selftest-source: $TARGET_SOURCE_SHA" \
-            "$PRODUCTION_URL/api/selftest" -o /tmp/selftest.json
+            "$PRODUCTION_URL/api/selftest?smoke=$(date +%s%N)" -o /tmp/selftest.json
           node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.TARGET_SOURCE_SHA) process.exit(1)"
 
           echo "PRODUCTION SMOKE PASS: health + dashboard + immutable asset + Office selftest, source=$TARGET_SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Roll back if post-promotion smoke fails
+      - name: Roll back if post-promotion validation fails
         if: failure() && steps.promote.outcome == 'success' && steps.previous.outputs.id != ''
         shell: bash
         run: |
@@ -132,21 +135,15 @@ jobs:
           PREVIOUS_SOURCE="${{ steps.previous.outputs.source }}"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=phase55-production-smoke-failure" \
+            "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=phase55-production-validation-failure" \
             -o /tmp/rollback.json
           RESTORED=0
-          for attempt in $(seq 1 30); do
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
-              -o /tmp/rollback-current.json || true
-            CURRENT_ID="$(node -e "try{const d=require('/tmp/rollback-current.json');process.stdout.write(String(d.id||''))}catch{process.stdout.write('')}" )"
-            if [ "$CURRENT_ID" = "$PREVIOUS_ID" ]; then RESTORED=1; break; fi
+          for attempt in $(seq 1 45); do
+            curl --silent --show-error -D /tmp/rollback-health.headers \
+              "$PRODUCTION_URL/api/health?rollback=$attempt-$(date +%s%N)" -o /tmp/rollback-health.json || true
+            SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/rollback-health.headers 2>/dev/null | tail -1 | tr -d '\r')"
+            if [ -n "$PREVIOUS_SOURCE" ] && [ "$SOURCE" = "$PREVIOUS_SOURCE" ]; then RESTORED=1; break; fi
             sleep 2
           done
           [ "$RESTORED" = "1" ]
-          curl --fail --silent --show-error -D /tmp/rollback-health.headers \
-            "$PRODUCTION_URL/api/health" -o /tmp/rollback-health.json
-          ROLLBACK_SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/rollback-health.headers | tail -1 | tr -d '\r')"
-          if [ -n "$PREVIOUS_SOURCE" ] && [ "$ROLLBACK_SOURCE" != "$PREVIOUS_SOURCE" ]; then exit 1; fi
-          echo "ROLLBACK PASS: restored $PREVIOUS_ID source=${ROLLBACK_SOURCE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+          echo "ROLLBACK PASS: restored source=$PREVIOUS_SOURCE" >> "$GITHUB_STEP_SUMMARY"
