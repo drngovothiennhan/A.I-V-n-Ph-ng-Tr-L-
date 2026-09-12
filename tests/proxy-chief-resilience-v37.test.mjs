@@ -29,7 +29,10 @@ assert.match(gateway,/providerCallMade:\s*false/,'rejected proxy requests must e
 const guardIndex=gateway.indexOf('sameOriginRuntimeRequest(req)');
 const delegateIndex=gateway.lastIndexOf('proxy(req, res)');
 assert.ok(guardIndex>=0&&delegateIndex>guardIndex,'same-origin guard must run before canonical proxy execution');
-const proxyRewrite=(vercel.rewrites||[]).find(row=>row?.source==='/api/proxy');
-assert.equal(proxyRewrite?.destination,'/api/proxy-gateway','production /api/proxy must route through the secure runtime gateway');
+
+const rewrite=(vercel.rewrites||[]).find(row=>row?.source==='/api/proxy');
+const route=(vercel.routes||[]).find(row=>row?.src==='/api/proxy');
+const destination=String(rewrite?.destination||route?.dest||'').replace(/\.ts(?=\?|$)/,'');
+assert.equal(destination,'/api/proxy-gateway','production /api/proxy must route through the secure runtime gateway');
 
 console.log('proxy-chief-resilience-v37: bounded timeout + honest fallback + same-origin runtime gateway PASS');
