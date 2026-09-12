@@ -7,15 +7,18 @@ const vercel=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url)
 
 assert.match(source,/const CHIEF_TIMEOUT_MS = 12000;/,'chief provider timeout must be bounded to 12s');
 assert.match(source,/function isTimeoutError\(error\)/,'timeout classification helper must exist');
-assert.match(source,/if \(!isTimeoutError\(error\)\) throw error;/,'only provider timeout/abort errors may be converted to fallback');
+assert.match(source,/if \(!isTimeoutError\(error\)\) throw error;/,'only provider timeout\/abort errors may be converted to fallback');
 assert.match(source,/chief_provider_timeout/,'timeout must leave an auditable warning without prompt content');
 assert.match(source,/limitation: 'GEMINI_TIMEOUT_FALLBACK'/,'timeout fallback must be explicit to callers');
 assert.match(source,/providerHealth: 'degraded-timeout'/,'timeout must report degraded provider health');
 assert.match(source,/return res\.status\(200\)\.json\(await chief\(req\.body\)\)/,'chief timeout fallback must remain a successful operation response');
 assert.doesNotMatch(source,/signal: AbortSignal\.timeout\(30000\)/,'legacy 30s chief timeout must be removed');
-assert.doesNotMatch(source,/chief_provider_timeout[\s\S]{0,200}message\s*[:=]/,'timeout audit must not log user prompt/message');
+assert.doesNotMatch(source,/chief_provider_timeout[\s\S]{0,200}message\s*[:=]/,'timeout audit must not log user prompt\/message');
 assert.doesNotMatch(source,/generationConfig:\s*\{[^}]*temperature\s*:/s,'Gemini 3.8 chief must not send deprecated temperature sampling parameter');
-assert.match(source,/thinkingConfig:\s*\{\s*thinkingLevel:\s*'low'\s*\}/,'fast chief questions must use supported Gemini 3.8 low thinking level');
+assert.match(source,/const DEFAULT_THINKING_LEVEL = 'medium'/,'Chief must use medium thinking by default for better reasoning quality');
+assert.match(source,/\['minimal', 'low', 'medium', 'high'\]\.includes\(requested\)/,'Chief may accept supported Gemini 3 thinking levels');
+assert.match(source,/thinkingConfig:\s*\{\s*thinkingLevel\s*\}/,'Gemini request must use the resolved thinking level');
+assert.doesNotMatch(source,/thinkingLevel:\s*'low'/,'Chief must not be hard-wired to low reasoning');
 
 assert.match(gateway,/import proxy from '\.\/proxy\.js'/,'secure proxy gateway must use runtime-safe canonical proxy import');
 assert.doesNotMatch(gateway,/from ['"]\.\/proxy(?:\.ts)?['"]/,'gateway must never emit extensionless or .ts runtime import');
@@ -26,7 +29,7 @@ for(const marker of ['x-forwarded-host','referer','sec-fetch-site','sec-fetch-mo
   assert.ok(gateway.includes(marker),`proxy gateway must inspect ${marker}`);
 }
 assert.match(gateway,/site && site !== 'same-origin'/,'cross-site runtime requests must be rejected');
-assert.match(gateway,/AI_RUNTIME_SAME_ORIGIN_REQUIRED/,'proxy gateway must reject cross-site/direct-browser runtime calls before execution');
+assert.match(gateway,/AI_RUNTIME_SAME_ORIGIN_REQUIRED/,'proxy gateway must reject cross-site\/direct-browser runtime calls before execution');
 assert.match(gateway,/providerCallMade:\s*false/,'rejected proxy requests must explicitly confirm no provider call was made');
 const guardIndex=gateway.indexOf('sameOriginRuntimeRequest(req)');
 const delegateIndex=gateway.lastIndexOf('proxy(req, res)');
@@ -37,4 +40,4 @@ const route=(vercel.routes||[]).find(row=>row?.src==='/api/proxy');
 const destination=String(rewrite?.destination||route?.dest||'').replace(/\.ts(?=\?|$)/,'');
 assert.equal(destination,'/api/proxy-gateway','production /api/proxy must route through the secure runtime gateway');
 
-console.log('proxy-chief-resilience-v56: Gemini 3.8 config + bounded timeout + runtime-safe gateway PASS');
+console.log('proxy-chief-resilience-v71: Gemini 3.8 medium reasoning + bounded timeout + runtime-safe gateway PASS');

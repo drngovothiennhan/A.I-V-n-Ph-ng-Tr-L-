@@ -5,6 +5,7 @@ import { createArtifact } from './_artifact-engine.js';
 const MAX_BODY = 256 * 1024;
 const ALLOWED_OPS = new Set(['chief', 'web', 'artifact']);
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+const DEFAULT_THINKING_LEVEL = 'medium';
 const CHIEF_TIMEOUT_MS = 12000;
 
 function geminiModel() {
@@ -46,12 +47,19 @@ function isTimeoutError(error) {
   return name === 'TimeoutError' || name === 'AbortError' || message.includes('timeout') || message.includes('timed out');
 }
 
+function chiefThinkingLevel(body) {
+  const requested = String(body?.thinkingLevel || '').toLowerCase();
+  if (['minimal', 'low', 'medium', 'high'].includes(requested)) return requested;
+  return DEFAULT_THINKING_LEVEL;
+}
+
 async function chief(body) {
   const message = cleanText(body?.message, 24000);
   if (!message) return { reply: '' };
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { reply: '', provider: 'local', fallback: true, providerHealth: 'not-configured' };
   const model = geminiModel();
+  const thinkingLevel = chiefThinkingLevel(body);
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
   let response;
   try {
@@ -62,14 +70,14 @@ async function chief(body) {
         contents: [{ role: 'user', parts: [{ text: message }] }],
         generationConfig: {
           maxOutputTokens: 4096,
-          thinkingConfig: { thinkingLevel: 'low' }
+          thinkingConfig: { thinkingLevel }
         }
       }),
       signal: AbortSignal.timeout(CHIEF_TIMEOUT_MS)
     });
   } catch (error) {
     if (!isTimeoutError(error)) throw error;
-    console.warn('chief_provider_timeout', { provider: 'gemini', timeoutMs: CHIEF_TIMEOUT_MS, model });
+    console.warn('chief_provider_timeout', { provider: 'gemini', timeoutMs: CHIEF_TIMEOUT_MS, model, thinkingLevel });
     return {
       reply: '',
       provider: 'local',
@@ -77,7 +85,8 @@ async function chief(body) {
       providerHealth: 'degraded-timeout',
       limitation: 'GEMINI_TIMEOUT_FALLBACK',
       timeoutMs: CHIEF_TIMEOUT_MS,
-      model
+      model,
+      thinkingLevel
     };
   }
   if (!response.ok) return {
@@ -86,11 +95,12 @@ async function chief(body) {
     fallback: true,
     providerHealth: [401, 403, 429].includes(response.status) ? 'degraded' : 'upstream-error',
     upstreamStatus: response.status,
-    model
+    model,
+    thinkingLevel
   };
   const data = await response.json();
   const reply = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('') || '';
-  return { reply, provider: 'gemini', fallback: false, providerHealth: 'healthy', model };
+  return { reply, provider: 'gemini', fallback: false, providerHealth: 'healthy', model, thinkingLevel };
 }
 
 async function webRead(body) {

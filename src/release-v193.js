@@ -1,5 +1,5 @@
 const RELEASE = '1.9.3';
-const AI_CORE = '3.2.2';
+const AI_CORE = '3.2.3';
 const GLOBAL_CANCEL = '3.3.0';
 const AUTHORIZATION = '3.4.0';
 const CONTEXT_MANAGER = '3.5.0';
@@ -37,7 +37,7 @@ function syncReleaseLabels() {
 
 async function bootKnowledgeRouter() {
   try {
-    const aiCore = await import('./ai-orchestrator-core-v32.js?v=322');
+    const aiCore = await import('./ai-orchestrator-core-v32.js?v=323');
     aiCore.installAICoreOrchestrator?.();
 
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
@@ -63,14 +63,11 @@ async function bootKnowledgeRouter() {
     await import('./voice-render-bridge-v23.js?v=230');
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
 
-    // Canonical Office V2 production presentation path. These modules were previously attached only to bootstrap-v17,
-    // while api/app.ts intentionally serves bootstrap-v18 + release-v193. Keep the canonical app shell and activate
-    // persistence/delegation/workspace/UI here so production actually executes them.
     const taskBridge = await import('./office-v2/task-runtime-bridge.js?v=2101');
     taskBridge.installOfficeV2TaskRuntimeBridge?.();
     const taskWorkspace = await import('./office-v2/task-workspace.js?v=2101');
     taskWorkspace.installOfficeV2TaskWorkspace?.();
-    const uiV2 = await import('./office-v2/ui-v2-shell.js?v=3001');
+    const uiV2 = await import('./office-v2/ui-v2-shell.js?v=3002');
     uiV2.installAIOfficeUIV2?.();
 
     weather.patchVoice?.();

@@ -25,19 +25,20 @@ test('UI V2 preserves canonical business controls and IDs',()=>{
   for(const id of ['top','tasks','aiV2TaskWorkspace'])assert.match(shell,new RegExp(`getElementById\\('${id}'\\)|querySelector\\('#${id}`));
 });
 
-test('legacy bootstrap remains compatible but UI V2 is ordered after workspace',()=>{
+test('legacy bootstrap remains compatible but UI V2 is ordered after workspace there',()=>{
   const workspace=bootstrap.indexOf("task-workspace.js?v=2100");
   const ui=bootstrap.indexOf("ui-v2-shell.js?v=3000");
   assert.ok(workspace>=0&&ui>workspace);
   assert.match(bootstrap,/AIOfficeUIV2Version='3\.0\.0-production-shell'/);
 });
 
-test('canonical production app shell activates Office V2 through release-v193',()=>{
+test('canonical production shell paints UI early and release reuses the same module cache key',()=>{
   assert.match(app,/bootstrap-v17\\\.js/);
   assert.match(app,/release-v193\\\.js/);
+  assert.match(app,/ui-v2-shell\.js\?v=3002/);
   const tasks=release.indexOf("task-runtime-bridge.js?v=2101");
   const workspace=release.indexOf("task-workspace.js?v=2101");
-  const ui=release.indexOf("ui-v2-shell.js?v=3001");
+  const ui=release.indexOf("ui-v2-shell.js?v=3002");
   assert.ok(tasks>=0&&workspace>tasks&&ui>workspace);
   assert.match(release,/installOfficeV2TaskRuntimeBridge/);
   assert.match(release,/installOfficeV2TaskWorkspace/);
