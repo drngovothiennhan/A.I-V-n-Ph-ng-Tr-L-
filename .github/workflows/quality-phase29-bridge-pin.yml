@@ -1,0 +1,26 @@
+name: Phase 29 Bridge Pin QA
+
+on:
+  push:
+    branches: [ai-office-phase29-bridge-pin]
+  workflow_dispatch:
+
+jobs:
+  bridge-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check src/credential-setup-v22.js
+          cp api/asset.ts /tmp/asset-v29.mjs
+          node --check /tmp/asset-v29.mjs
+          node --check tests/immutable-runtime-assets-v44.test.mjs
+      - name: Immutable release assets and Drive Bridge regression
+        run: node tests/immutable-runtime-assets-v44.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
