@@ -1,0 +1,174 @@
+name: Phase 56 Gateway Runtime Candidate QA
+
+on:
+  push:
+    branches: [ai-office-phase56-esm-gateway-runtime]
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-runtime-candidate:
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install and run source regressions
+        shell: bash
+        run: |
+          npm install --ignore-scripts
+          node tests/source-policy-v20.test.mjs
+          node tests/vercel-typescript-build-v53.test.mjs
+          node tests/vercel-function-budget-v54.test.mjs
+          node tests/vercel-gateway-esm-runtime-v56.test.mjs
+          node tests/vercel-research-route-v39.test.mjs
+          node tests/proxy-chief-resilience-v37.test.mjs
+          node tests/drive-runtime-provider-v25.test.mjs
+          node tests/artifact-engine-v24.test.mjs
+          npm audit --omit=dev --audit-level=high
+
+      - name: Require scoped Vercel credential
+        run: test -n "$VERCEL_TOKEN"
+
+      - name: Install pinned Vercel CLI and bind project
+        shell: bash
+        run: |
+          npm install --global vercel@59.11.7
+          rm -rf .vercel
+          mkdir -p .vercel
+          node - <<'NODE'
+          const fs=require('fs');
+          fs.writeFileSync('.vercel/project.json', JSON.stringify({
+            orgId:process.env.VERCEL_ORG_ID,
+            projectId:process.env.VERCEL_PROJECT_ID
+          }));
+          NODE
+
+      - name: Deploy no-traffic production-environment candidate
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(vercel deploy --prod --skip-domain --yes --env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA" --token="$VERCEL_TOKEN")"
+          test -n "$URL"
+          HOST="${URL#https://}"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$HOST?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/candidate.json
+          ID="$(node -e "const d=require('/tmp/candidate.json');process.stdout.write(String(d.id||''))")"
+          [[ "$ID" =~ ^dpl_ ]]
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "Candidate: $ID — NO TRAFFIC" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create ephemeral protected-candidate bypass
+        shell: bash
+        run: |
+          set -euo pipefail
+          ID="${{ steps.deploy.outputs.id }}"
+          curl --fail --silent --show-error --request PATCH \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"ttl":600}' \
+            "https://api.vercel.com/aliases/$ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/bypass.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/bypass.json','utf8'));
+          const known=new Set(['createdAt','createdBy','scope','access','lastUpdatedAt','lastUpdatedBy','protectionBypass','uid','alias','deploymentId','projectId','value']);
+          let secret=typeof data.value==='string'?data.value:'';
+          const visit=(obj,depth=0)=>{
+            if(secret||!obj||typeof obj!=='object'||depth>4)return;
+            if(obj.protectionBypass&&typeof obj.protectionBypass==='object'){
+              for(const key of Object.keys(obj.protectionBypass)){
+                if(!known.has(key)&&key.length>=20){secret=key;return;}
+              }
+            }
+            for(const [key,val] of Object.entries(obj)){
+              if(secret)return;
+              if(!known.has(key)&&key.length>=20&&val&&typeof val==='object'){secret=key;return;}
+              if(val&&typeof val==='object')visit(val,depth+1);
+            }
+          };
+          visit(data);
+          if(!secret)throw new Error('Missing Vercel protection bypass secret');
+          fs.writeFileSync('/tmp/bypass-secret',secret,{mode:0o600});
+          NODE
+
+      - name: Runtime smoke — health and all dynamic gateways
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deploy.outputs.url }}"
+          BYPASS="$(cat /tmp/bypass-secret)"
+          JAR=/tmp/candidate-cookie.jar
+          SHARE="_vercel_share=$BYPASS"
+          HOST="${URL#https://}"
+          COMMON=(--silent --show-error --location --cookie-jar "$JAR" --cookie "$JAR")
+
+          curl --fail "${COMMON[@]}" -D /tmp/health.headers "$URL/api/health?$SHARE" -o /tmp/health.json
+          SOURCE="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/health.headers | tail -1 | tr -d '\r')"
+          [ "$SOURCE" = "$GITHUB_SHA" ]
+          node -e "const h=require('/tmp/health.json');if(h.status!=='ok'||h.providers?.gemini?.configured!==true)process.exit(1)"
+
+          # Proxy: real same-origin Gemini call. This is the user-facing path that was 500 in Phase 55.
+          PROXY_CODE="$(curl "${COMMON[@]}" -o /tmp/proxy.json -w '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "referer: $URL/" \
+            --header 'sec-fetch-site: same-origin' \
+            --header 'sec-fetch-mode: cors' \
+            --header 'sec-fetch-dest: empty' \
+            --data '{"message":"Trả lời ngắn gọn: 2 + 2 bằng bao nhiêu?"}' \
+            "$URL/api/proxy?op=chief&$SHARE")"
+          [ "$PROXY_CODE" = "200" ]
+          node - <<'NODE'
+          const d=require('/tmp/proxy.json');
+          if(d.provider!=='gemini'||d.fallback===true||!String(d.reply||'').match(/\b4\b/)){
+            console.error({provider:d.provider,fallback:d.fallback,providerHealth:d.providerHealth,reply:String(d.reply||'').slice(0,200)});
+            process.exit(1);
+          }
+          NODE
+
+          # Research gateway must load canonical research module; GET should be a clean 405, never module-resolution 500.
+          RESEARCH_CODE="$(curl "${COMMON[@]}" -o /tmp/research.txt -w '%{http_code}' "$URL/api/research?$SHARE")"
+          [ "$RESEARCH_CODE" = "405" ]
+
+          # Drive is intentionally locked until credentials exist; health must fail closed as configured:false, not crash.
+          DRIVE_CODE="$(curl "${COMMON[@]}" -o /tmp/drive.json -w '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "referer: $URL/" \
+            --header 'sec-fetch-site: same-origin' \
+            --header 'sec-fetch-mode: cors' \
+            --header 'sec-fetch-dest: empty' \
+            --data '{"action":"health"}' \
+            "$URL/api/drive-brain?$SHARE")"
+          [ "$DRIVE_CODE" = "200" ]
+          node -e "const d=require('/tmp/drive.json');if(d.configured!==false||d.live!==true||d.reason!=='DRIVE_RUNTIME_CREDENTIALS_MISSING')process.exit(1)"
+
+          # Resource gateways must load their canonical handlers without invoking expensive work.
+          IMAGE_CODE="$(curl "${COMMON[@]}" -o /tmp/image.json -w '%{http_code}' \
+            --request POST --header 'content-type: application/json' --header "referer: $URL/" \
+            --header 'sec-fetch-site: same-origin' --header 'sec-fetch-mode: cors' --header 'sec-fetch-dest: empty' \
+            --data '{}' "$URL/api/image?$SHARE")"
+          [ "$IMAGE_CODE" = "400" ]
+          node -e "const d=require('/tmp/image.json');if(d.error!=='PROMPT_REQUIRED')process.exit(1)"
+
+          INGEST_CODE="$(curl "${COMMON[@]}" -o /tmp/ingest.json -w '%{http_code}' \
+            --request POST --header 'content-type: application/json' --header "referer: $URL/" \
+            --header 'sec-fetch-site: same-origin' --header 'sec-fetch-mode: cors' --header 'sec-fetch-dest: empty' \
+            --data '{}' "$URL/api/ingest?$SHARE")"
+          [ "$INGEST_CODE" = "400" ]
+          node -e "const d=require('/tmp/ingest.json');if(d.error!=='UNSUPPORTED_FILE_TYPE')process.exit(1)"
+
+          rm -f /tmp/bypass-secret "$JAR"
+          echo "PHASE 56 RUNTIME PASS — proxy Gemini answered 4; research=405; Drive locked cleanly; image/ingest handlers loaded; source=$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
