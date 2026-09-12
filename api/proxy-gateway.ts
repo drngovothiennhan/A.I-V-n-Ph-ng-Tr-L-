@@ -1,4 +1,4 @@
-import proxy from './proxy';
+import proxy from './proxy.js';
 
 function json(res, status, body) {
   res.setHeader('cache-control', 'no-store');
