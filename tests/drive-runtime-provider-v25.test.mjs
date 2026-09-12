@@ -21,8 +21,8 @@ assert.doesNotMatch(drive, /DRIVE_BRAIN_REGISTRY\.scopes\[scope\]\?\.id/, 'scope
 assert.doesNotMatch(drive, /https:\/\/www\.googleapis\.com\/auth\/drive(?!\.readonly)/, 'write-capable Drive OAuth scope is forbidden');
 assert.doesNotMatch(drive, /files\/[^\s'"`]+\/permissions/, 'provider must not mutate Drive permissions');
 
-assert.match(gateway, /import driveBrain from '\.\/drive-brain'/, 'gateway must delegate to the canonical readonly Drive handler');
-assert.doesNotMatch(gateway, /from ['"]\.\/drive-brain\.ts['"]/,'gateway import must remain TypeScript-build compatible');
+assert.match(gateway, /import driveBrain from '\.\/drive-brain\.js'/, 'gateway must use runtime-safe canonical readonly Drive handler import');
+assert.doesNotMatch(gateway, /from ['"]\.\/drive-brain(?:\.ts)?['"]/,'gateway must never emit extensionless or .ts runtime import');
 assert.match(gateway, /req\.method !== 'POST'/, 'Drive gateway must reject non-POST access');
 assert.match(gateway, /application\/json/, 'Drive gateway must require JSON requests');
 assert.match(gateway, /function sameOriginDriveRequest\(req\)/, 'Drive gateway must enforce a same-origin request boundary');
@@ -45,4 +45,4 @@ assert.match(health, /providerPriority:\s*\['apps-script-bridge', 'service-accou
 assert.match(health, /localFallbackAllowed:\s*false/, 'Drive runtime must never silently fall back to local uploads');
 assert.match(health, /Share A\.I Văn phòng root folder with the service-account client_email as Viewer/, 'manual least-privilege permission step must be explicit');
 
-console.log('drive-runtime-provider-v25: readonly provider + same-origin gateway + scope mapping + fallback boundaries PASS');
+console.log('drive-runtime-provider-v56: readonly provider + runtime-safe gateway + scope boundaries PASS');
