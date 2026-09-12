@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback]
   workflow_dispatch:
 
 jobs:
@@ -74,6 +74,7 @@ jobs:
           node --check tests/immutable-runtime-assets-v44.test.mjs
           node --check tests/deployment-release-coherence-v45.test.mjs
           node --check tests/deployment-promotion-gate-v46.test.mjs
+          node --check tests/deployment-rollback-recovery-v48.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -114,6 +115,8 @@ jobs:
         run: node tests/deployment-release-coherence-v45.test.mjs
       - name: Candidate promotion gate regression
         run: node tests/deployment-promotion-gate-v46.test.mjs
+      - name: Post-promotion rollback recovery regression
+        run: node tests/deployment-rollback-recovery-v48.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -149,10 +152,27 @@ jobs:
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "::error::VERCEL_TOKEN is not configured; production deployment cannot run."
-            echo "BLOCKED: VERCEL_TOKEN is not configured; candidate deployment, promotion and production smoke did not run." >> "$GITHUB_STEP_SUMMARY"
+            echo "BLOCKED: VERCEL_TOKEN is not configured; candidate deployment, promotion, rollback recovery and production smoke did not run." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "Deployment credential present; candidate smoke must pass before production promotion." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment credential present; current production will be captured before candidate work." >> "$GITHUB_STEP_SUMMARY"
+      - name: Capture current production deployment
+        id: previous
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --header "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" -o /tmp/previous-deployment.json
+          PREVIOUS_ID="$(node -e "const d=require('/tmp/previous-deployment.json');process.stdout.write(String(d.id||''))")"
+          PREVIOUS_URL="$(node -e "const d=require('/tmp/previous-deployment.json');process.stdout.write(String(d.url||''))")"
+          if [[ ! "$PREVIOUS_ID" =~ ^dpl_ ]] || [ -z "$PREVIOUS_URL" ]; then
+            echo "::error::Could not resolve the currently serving production deployment."
+            exit 1
+          fi
+          curl --fail --silent --show-error -D /tmp/previous-health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/previous-health.json
+          PREVIOUS_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/previous-health.headers | tail -1)"
+          echo "id=$PREVIOUS_ID" >> "$GITHUB_OUTPUT"
+          echo "url=https://$PREVIOUS_URL" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$PREVIOUS_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "Captured serving production before release: $PREVIOUS_ID ($PREVIOUS_URL), source=${PREVIOUS_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull production configuration
@@ -197,12 +217,14 @@ jobs:
           node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('candidate artifact selftest ok:',t.engine)"
           echo "Candidate verified before traffic: health=$SOURCE_COMMIT ui=$UI_SOURCE_REF asset=$ASSET_SOURCE_REF" >> "$GITHUB_STEP_SUMMARY"
       - name: Promote verified candidate
+        id: promote
         shell: bash
         run: |
           URL="${{ steps.deploy.outputs.url }}"
           vercel promote "$URL" --yes --timeout 5m --token="$VERCEL_TOKEN"
           echo "Promoted verified candidate: $URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Post-promotion production smoke
+        id: production-smoke
         shell: bash
         run: |
           curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 -D /tmp/health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/health.json
@@ -232,3 +254,34 @@ jobs:
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
           node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('production artifact selftest ok:',t.engine)"
           echo "Production promotion verified: health=$SOURCE_COMMIT ui=$UI_SOURCE_REF asset=$ASSET_SOURCE_REF" >> "$GITHUB_STEP_SUMMARY"
+      - name: Roll back failed promotion
+        if: failure() && steps.promote.outcome == 'success' && steps.previous.outputs.id != ''
+        shell: bash
+        run: |
+          PREVIOUS_ID="${{ steps.previous.outputs.id }}"
+          PREVIOUS_SOURCE_COMMIT="${{ steps.previous.outputs.source_commit }}"
+          echo "Post-promotion verification failed; requesting rollback to $PREVIOUS_ID." >> "$GITHUB_STEP_SUMMARY"
+          curl --fail --silent --show-error --request POST --header "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v1/projects/$VERCEL_PROJECT_ID/rollback/$PREVIOUS_ID?teamId=$VERCEL_ORG_ID&description=automated-post-promotion-smoke-failure"
+
+          RESTORED=0
+          for attempt in $(seq 1 20); do
+            curl --fail --silent --show-error --header "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" -o /tmp/current-production.json || true
+            CURRENT_ID="$(node -e "try{const d=require('/tmp/current-production.json');process.stdout.write(String(d.id||''))}catch{process.stdout.write('')}" )"
+            if [ "$CURRENT_ID" = "$PREVIOUS_ID" ]; then
+              RESTORED=1
+              break
+            fi
+            sleep 3
+          done
+          if [ "$RESTORED" != "1" ]; then
+            echo "::error::Rollback request did not restore the captured production deployment $PREVIOUS_ID."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/rollback-health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/rollback-health.json
+          ROLLBACK_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/rollback-health.headers | tail -1)"
+          if [ -n "$PREVIOUS_SOURCE_COMMIT" ] && [ "$PREVIOUS_SOURCE_COMMIT" != "unknown" ] && [ "$ROLLBACK_SOURCE_COMMIT" != "$PREVIOUS_SOURCE_COMMIT" ]; then
+            echo "::error::Rollback deployment ID restored but source commit mismatch. expected=$PREVIOUS_SOURCE_COMMIT actual=${ROLLBACK_SOURCE_COMMIT:-missing}"
+            exit 1
+          fi
+          echo "Rollback restored deployment: $PREVIOUS_ID, source=${ROLLBACK_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
