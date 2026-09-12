@@ -1,0 +1,24 @@
+name: Phase 40 Drive Internal Boundary QA
+
+on:
+  push:
+    branches: [ai-office-phase40-drive-internal-boundary]
+
+jobs:
+  drive-internal-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check api/drive-brain-gateway.ts
+          node --check tests/drive-runtime-provider-v25.test.mjs
+          node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
+      - name: Drive internal boundary regression
+        run: node tests/drive-runtime-provider-v25.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
