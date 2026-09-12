@@ -148,8 +148,32 @@ export default async function handler(req, res) {
   if (probe === 'gemini-grounding') return json(res, 200, { ...config, probe: { geminiGrounding: await probeGeminiGrounding() } });
   if (probe === 'xiaozhi') return json(res, 200, { ...config, probe: { xiaozhi: await probeXiaozhi() } });
   if (probe === 'all') {
-    const [gemini, geminiGrounding, xiaozhi] = await Promise.all([probeGemini(), probeGeminiGrounding(), probeXiaozhi()]);
-    return json(res, 200, { ...config, probe: { gemini, geminiGrounding, xiaozhi } });
+    return json(res, 200, {
+      ...config,
+      probeMode: 'passive-config-only',
+      providerCalls: 0,
+      probe: {
+        gemini: {
+          pass: null,
+          configured: config.gemini.configured,
+          model: config.gemini.model,
+          reason: 'MANUAL_CHECK_REQUIRED'
+        },
+        geminiGrounding: {
+          pass: null,
+          configured: config.gemini.configured,
+          model: config.gemini.model,
+          reason: 'MANUAL_CHECK_REQUIRED'
+        },
+        xiaozhi: {
+          pass: null,
+          configured: config.xiaozhi.configured,
+          endpoint: config.xiaozhi.endpoint,
+          browserFallback: true,
+          reason: 'MANUAL_CHECK_REQUIRED'
+        }
+      }
+    });
   }
   return json(res, 400, { error: 'INVALID_PROBE', allowed: ['config', 'gemini', 'gemini-grounding', 'xiaozhi', 'all'] });
 }
