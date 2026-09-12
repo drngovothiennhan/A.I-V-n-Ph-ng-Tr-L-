@@ -1,7 +1,7 @@
 import { classifyInteractionV22, normalizeV22 } from './interaction-policy-v22.js';
 import { createContextSnapshot, contextEnvelopeFields } from './context-manager-v35.js';
 
-export const AI_CORE_VERSION = '3.2.2-bounded-context';
+export const AI_CORE_VERSION = '3.2.3-meta-question-safe';
 export const CANONICAL_INTENTS = Object.freeze({
   QUESTION:'QUESTION',
   TASK:'TASK',
@@ -66,6 +66,7 @@ function canonicalType(raw,n,interaction,context={}){
     if(['stop_speaking','repeat','resume_listening'].includes(interaction.control)||VOICE_CONTROLS.test(n))return CANONICAL_INTENTS.VOICE_COMMAND;
     return CANONICAL_INTENTS.SYSTEM_COMMAND;
   }
+  if(interaction?.meta===true)return CANONICAL_INTENTS.QUESTION;
   if(VOICE_CONTROLS.test(n))return CANONICAL_INTENTS.VOICE_COMMAND;
   if(SYSTEM_HINTS.test(n))return CANONICAL_INTENTS.SYSTEM_COMMAND;
   if(APP_ACTIONS.test(n)&&APP_HINTS.test(n))return CANONICAL_INTENTS.APP_COMMAND;
@@ -93,7 +94,8 @@ export function classifyCanonicalIntent(text='',context={}){
   const n=normalizeV22(raw);
   const interaction=context.interaction||classifyInteractionV22(raw,{hasActiveTask:Boolean(context.hasActiveTask)});
   const type=canonicalType(raw,n,interaction,context);
-  const artifacts=artifactHints(n,interaction);
+  const questionLike=interaction?.mode==='question'||interaction?.mode==='casual'||type===CANONICAL_INTENTS.QUESTION;
+  const artifacts=questionLike?[]:artifactHints(n,interaction);
   const source=sourceDirective(type,n,context);
   const confidence=Math.max(0.55,Math.min(0.99,Number(interaction?.confidence||0.7)));
   const needsApproval=Boolean(interaction?.needsApproval||interaction?.risk==='high');
@@ -113,6 +115,7 @@ export function classifyCanonicalIntent(text='',context={}){
     continuation:Boolean(context.continuation),
     reasonCodes:uniq([
       interaction?.mode?`interaction:${interaction.mode}`:'interaction:unknown',
+      interaction?.meta?'meta-question':'',
       interaction?.taskKind?`kind:${interaction.taskKind}`:'kind:general',
       source.reason,
       artifacts.length?`artifact:${artifacts.join('+')}`:''
