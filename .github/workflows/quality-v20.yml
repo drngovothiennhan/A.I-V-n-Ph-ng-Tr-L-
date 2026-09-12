@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback, ai-office-phase33-canonical-quota-gate]
   workflow_dispatch:
 
 jobs:
@@ -74,6 +74,7 @@ jobs:
           node --check tests/immutable-runtime-assets-v44.test.mjs
           node --check tests/deployment-release-coherence-v45.test.mjs
           node --check tests/deployment-promotion-gate-v46.test.mjs
+          node --check tests/credential-probe-quota-v47.test.mjs
           node --check tests/deployment-rollback-recovery-v48.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
@@ -115,6 +116,8 @@ jobs:
         run: node tests/deployment-release-coherence-v45.test.mjs
       - name: Candidate promotion gate regression
         run: node tests/deployment-promotion-gate-v46.test.mjs
+      - name: Credential provider probe quota regression
+        run: node tests/credential-probe-quota-v47.test.mjs
       - name: Post-promotion rollback recovery regression
         run: node tests/deployment-rollback-recovery-v48.test.mjs
       - name: Office business workflow regression
