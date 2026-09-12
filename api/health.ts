@@ -21,6 +21,9 @@ function imageModel() {
 function groundedImageModel() {
   return process.env.AI_OFFICE_GEMINI_GROUNDED_IMAGE_MODEL || DEFAULT_GEMINI_GROUNDED_IMAGE_MODEL;
 }
+function sourceCommit() {
+  return process.env.AI_OFFICE_SOURCE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || 'unknown';
+}
 
 async function probeVoiceRender() {
   try {
@@ -118,6 +121,7 @@ export default async function handler(req, res) {
   };
 
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('x-ai-office-source-commit', sourceCommit());
   return res.status(200).json({
     status: 'ok',
     release: '1.9.3-autonomous-office-orchestrator',
