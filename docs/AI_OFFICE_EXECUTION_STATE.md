@@ -3,7 +3,8 @@
 Updated: 2026-09-12
 
 ## CURRENT_PHASE
-PHASE 21–39 COMPLETE — PROVIDER ROUTING / DEPLOY TRUTH / EXACT SOURCE STAMPING / IMMUTABLE RELEASE / QUOTA-SAFE DIAGNOSTICS / CANDIDATE PROMOTION / POST-PROMOTION ROLLBACK / CANONICAL QUALITY GATE / GEMINI CONFIG RELEASE GATE / PINNED VERCEL CLI / HONEST GROUNDING HEALTH / PASSIVE AGGREGATE PROVIDER CHECK / PASSIVE HEALTH + EXPLICIT XIAOZHI PROBE / SAME-ORIGIN PAID DIAGNOSTICS
+PHASE 21–40 COMPLETE — PROVIDER ROUTING / DEPLOY TRUTH / EXACT SOURCE STAMPING / IMMUTABLE RELEASE / QUOTA-SAFE DIAGNOSTICS / CANDIDATE PROMOTION / POST-PROMOTION ROLLBACK / CANONICAL QUALITY GATE / GEMINI CONFIG RELEASE GATE / PINNED VERCEL CLI / HONEST PROVIDER HEALTH / PASSIVE XIAOZHI HEALTH / SAME-ORIGIN PAID DIAGNOSTICS / DRIVE INTERNAL SAME-ORIGIN GATEWAY
+
 NEXT: production remains BLOCKED by missing `VERCEL_TOKEN`. Continue only with current-source issues proven by tests or fresh runtime evidence.
 
 ## CURRENT_OBJECTIVE
@@ -37,31 +38,27 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - PHASE 32 post-promotion rollback recovery targets exact production deployment captured before release and keeps failed release red after recovery.
 - PHASE 33 provider quota regression moved into canonical `source-policy`; duplicate workflow removed.
 - PHASE 34 candidate and production smoke require `providers.gemini.configured === true` plus expected primary/economy models, without running Grounding probe.
-- PHASE 35 Vercel CLI is pinned to `59.11.7`; no `vercel@latest` release drift.
-- PHASE 36 honest Grounding health: `/api/health` no longer maps API-key presence to `googleSearchGrounding: true`. Legacy field is `null` until verified; explicit fields distinguish configured/verified/status and keep health quota-free.
-- PHASE 37 passive aggregate provider diagnostics: `/api/provider-check?probe=all` no longer executes Gemini, Gemini Grounding, XiaoZhi, or `Promise.all`. It returns config plus `MANUAL_CHECK_REQUIRED`, `probeMode: passive-config-only`, and `providerCalls: 0`. Explicit named probes remain available separately. Quota regression v47 enforces this contract.
-- PHASE 38 passive health + explicit XiaoZhi probe: default `/api/health` no longer contacts Render/XiaoZhi. It returns `healthMode: passive-config`, XiaoZhi `runtimeReady: null`, `runtimeStatus: not-probed`, and an `EXPLICIT_VOICE_PROBE_REQUIRED` placeholder. `/api/health?probe=voice` performs live voice reachability. AI Center ordinary refresh stays passive; dedicated `Kiểm tra XiaoZhi` performs the live probe. Configured-but-unprobed voice is `CONFIGURED / NOT PROBED`, never fabricated as `DEGRADED`.
-- PHASE 39 same-origin paid diagnostics: explicit Gemini/Grounding probes in `/api/provider-check` remain available to the existing Runtime UI, but provider invocation is now preceded by a same-origin browser-request guard bound to serving Host + Referer and Fetch Metadata (`Sec-Fetch-Site`, mode, destination when present). Cross-site requests, direct document navigation and crawler-like requests are rejected with `MANUAL_DIAGNOSTIC_SAME_ORIGIN_REQUIRED` and `providerCallMade:false` before Gemini is called. This reduces unintended quota consumption; it is defense-in-depth, not a substitute for account authentication in a future multi-user public deployment.
+- PHASE 35 Vercel CLI pinned to `59.11.7`; no `vercel@latest` release drift.
+- PHASE 36 honest Grounding health: `/api/health` no longer maps API-key presence to verified Grounding health.
+- PHASE 37 aggregate provider diagnostics are passive/zero-provider-call; explicit named probes remain separate.
+- PHASE 38 default `/api/health` no longer contacts XiaoZhi/Render. Live voice is explicit via `?probe=voice`; AI Center shows `CONFIGURED / NOT PROBED` until requested.
+- PHASE 39 explicit Gemini/Grounding diagnostics require a same-origin browser request before any paid provider invocation; cross-site/direct navigation is rejected with `providerCallMade:false`.
+- PHASE 40 Drive internal-data boundary: production `/api/drive-brain` is rewritten to `api/drive-brain-gateway.ts`. Gateway requires POST + `application/json` + same-origin Host/Referer and Fetch Metadata before delegating to the canonical readonly Drive handler. Cross-site/direct-browser access is rejected with `DRIVE_INTERNAL_SAME_ORIGIN_REQUIRED` and `providerCallMade:false`. This is defense-in-depth/CSRF hardening, not a substitute for authenticated user authorization in a future broad multi-user deployment.
 
 ## VERIFIED CI
-- PHASE 33 branch #199 (`34665179101`): canonical source-policy PASS including provider quota regression.
-- PHASE 33 main #200 (`34665543085`): source-policy PASS; deploy BLOCKED at credential gate.
-- PHASE 34 branch #202 (`34665775983`): full source-policy PASS including Gemini configuration release gate.
-- PHASE 34 main #203 (`34665808158`): full source-policy PASS; deploy BLOCKED; no candidate/promotion executed.
-- PHASE 35 branch #204 (`34665933586`): full source-policy PASS including Vercel CLI pin regression.
-- PHASE 35 main #205 (`34665983893`): full source-policy PASS + dependency audit; deploy BLOCKED at missing credential.
-- PHASE 36 targeted branch QA #1 (`34666136934`): PASS health syntax, honest-Grounding regression and dependency audit.
-- PHASE 36 main #207 (`34666199812`): full source-policy PASS including honest Grounding contract, Drive, XiaoZhi, artifact and dependency audit; deploy BLOCKED.
-- PHASE 37 targeted branch QA #1 (`34666497827`): PASS provider-check syntax, extended quota regression v47 and dependency audit.
-- PHASE 37 main #209 (`34666533852`): full canonical source-policy PASS including zero-model aggregate provider-check contract, Drive, XiaoZhi, artifact round-trip and dependency audit; deploy BLOCKED at missing credential.
-- PHASE 38 targeted branch QA #1 (`34666757955`): PASS health/Operations Center syntax, passive-health regression, explicit XiaoZhi-check regression and dependency audit.
-- PHASE 38 main #211 (`34666795793`): full canonical source-policy PASS including updated Operations Center and provider-smoke contracts, Drive, XiaoZhi, artifact round-trip and dependency audit; deploy BLOCKED at missing credential.
-- PHASE 39 targeted branch QA #1 (`34666969298`): PASS provider-check syntax, quota/same-origin regression v47 and dependency audit.
-- PHASE 39 main #213 (`34667003988`): full canonical source-policy PASS including provider quota + same-origin diagnostic contract, Drive, XiaoZhi, artifact round-trip and dependency audit. `deploy-production` FAIL/BLOCKED exactly at `Require deployment credential`; Capture/Install/Pull/Build/Candidate Deploy/Candidate Smoke/Promote/Post-Smoke/Rollback all skipped.
+- PHASE 33 main #200 (`34665543085`): source-policy PASS; deploy BLOCKED.
+- PHASE 34 main #203 (`34665808158`): source-policy PASS; deploy BLOCKED.
+- PHASE 35 main #205 (`34665983893`): source-policy + dependency audit PASS; deploy BLOCKED.
+- PHASE 36 main #207 (`34666199812`): full source-policy PASS; deploy BLOCKED.
+- PHASE 37 main #209 (`34666533852`): full source-policy PASS including zero-model aggregate provider-check contract; deploy BLOCKED.
+- PHASE 38 main #211 (`34666795793`): full source-policy PASS including passive health + explicit XiaoZhi check; deploy BLOCKED.
+- PHASE 39 main #213 (`34667003988`): full source-policy PASS including same-origin paid diagnostics; deploy BLOCKED.
+- PHASE 40 targeted branch QA (`34667343177`): PASS gateway syntax, Drive internal-boundary regression and dependency audit.
+- PHASE 40 main #215 (`34667384170`): full canonical source-policy PASS including Drive registry, Bridge, readonly multi-provider, new same-origin gateway, XiaoZhi, artifact round-trip and dependency audit. `deploy-production` FAIL/BLOCKED exactly at `Require deployment credential`; Capture/Install/Pull/Build/Candidate Deploy/Candidate Smoke/Promote/Post-Smoke/Rollback all skipped.
 - `npm audit --omit=dev --audit-level=high`: PASS in all current verified suites.
 
 ## SOURCE_STATE
-- Current feature baseline through PHASE 39 before this checkpoint documentation commit: `65e9c2243c28a2adc98e0745083027b261b64ce4`.
+- Current feature baseline through PHASE 40 before this checkpoint documentation commit: `70f20982c4d29f9399c8a93ea9ba9968deafbb0e`.
 - Key contracts/files include:
   - `src/ai-orchestrator-core-v32.js`
   - `src/context-manager-v35.js`
@@ -78,11 +75,13 @@ Continue additive, production-safe hardening from the canonical orchestrator and
   - `api/research-v31.js`
   - `api/research.ts`
   - `api/drive-brain.ts`
+  - `api/drive-brain-gateway.ts`
   - `api/proxy.ts`
   - `api/health.ts`
   - `api/provider-check.ts`
   - `vercel.json`
   - `.github/workflows/quality-v20.yml`
+  - `tests/drive-runtime-provider-v25.test.mjs`
   - `tests/operations-center-v36.test.mjs`
   - `tests/provider-smoke-contract-v41.test.mjs`
   - `tests/deployment-promotion-gate-v46.test.mjs`
@@ -96,28 +95,28 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - Team: `team_zMTBj85c4Dh5QoDNIjWqQRTg`.
 - Production domain: `https://ai-van-phong-tro-ly.vercel.app`.
 - Current serving production deployment previously resolved as `dpl_DfW8oQE4WTrsQTJxLVWtVmfi3sca`.
-- Last fresh live `/api/health` verification still reported `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
-- Therefore source through PHASE 39 is NOT production-verified; live production still uses the older health/provider-diagnostic behavior until a verified deploy occurs.
+- Last fresh live verification still reported `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
+- Therefore source through PHASE 40 is NOT production-verified; live production still uses older health/provider/Drive routing until a verified deploy occurs.
 - Without `VERCEL_TOKEN`, no capture/candidate deployment/promotion/rollback workflow can run.
 
 ## AI_PROVIDER_STATUS
 - Gemini: CONFIGURED / DEGRADED. Last explicit Google Search Grounding probe observed HTTP 429. Current source does not equate configuration with verified Grounding health.
 - Gemini model contract: primary `gemini-3.8-flash`; economy `gemini-3.5-flash-lite`.
 - Runtime Credentials does not spend Grounding quota on auto-open/ordinary refresh.
-- Aggregate provider diagnostics are passive and zero-provider-call; explicit Gemini/Grounding checks additionally require a same-origin browser diagnostic request before any provider invocation.
+- Aggregate provider diagnostics are passive and zero-provider-call; explicit Gemini/Grounding checks require same-origin diagnostics.
 - Public research fallback: CONFIGURED / AVAILABLE.
 - Local Safe Engine: CONFIGURED fallback.
 - XiaoZhi: CONFIGURED. Current source treats live reachability as explicit telemetry only; passive health returns `NOT PROBED`. Browser fallback remains mandatory.
-- Drive runtime: NOT CONFIGURED.
+- Drive runtime: NOT CONFIGURED. When configured, production route is additionally protected by the PHASE 40 same-origin gateway before readonly provider logic.
 - Google Workspace actions: NOT CONFIGURED.
 - Durable Drive semantic index/delta sync: NOT implemented/proven.
 
-## OPEN_ERRORS
+## OPEN_ERRORS / LIMITATIONS
 - Production remains stale at source `825dbf...` until a real verified deploy occurs.
 - Gemini Grounding 429 keeps provider health DEGRADED rather than HEALTHY; do not auto-probe it.
 - Drive and Google Workspace E2E remain credential-dependent.
-- Live production still performs the old unconditional XiaoZhi health request and lacks PHASE 39 diagnostic request hardening because current source is not deployed yet.
-- Same-origin Fetch Metadata/Referer validation mitigates accidental/cross-site paid-probe activation but is not account authentication; if the product becomes broadly public/multi-user, provider-cost endpoints still require a real authenticated/rate-limited user boundary.
+- Live production still has the old unconditional XiaoZhi health request and lacks PHASE 39–40 request hardening because current source is not deployed yet.
+- Same-origin Fetch Metadata/Referer validation mitigates CSRF/cross-site activation but is not account authentication. If the product becomes broadly public/multi-user, provider-cost and internal-data endpoints require a real authenticated + rate-limited user boundary.
 - `url.parse()` DEP0169 and `stripTypeScriptTypes` remain measured warning-only signals; do not broadly refactor merely to silence them.
 - Historical loader/bare-module errors belong to old production; re-evaluate after current source reaches production.
 - Rollback recovery remains source/test verified only because deploy credentials are absent.
@@ -131,10 +130,10 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 ## NEXT_ACTION
 1. Configure `VERCEL_TOKEN`; highest-value external unblock.
 2. Once token exists, run canonical release: capture current production -> pinned Vercel CLI -> pull/build -> candidate `--prod --skip-domain` -> candidate smoke -> promote -> production smoke -> rollback captured deployment if post-smoke fails.
-3. Candidate/production smoke must require Gemini configured true, expected models, exact source/UI/asset refs, artifact selftest and safety asset; Grounding and XiaoZhi live probes remain excluded from ordinary release smoke to avoid external transient coupling.
-4. Until deploy is unblocked, continue only with source-side issues proven by current code/tests or fresh runtime evidence.
-5. After current source reaches production, rerun runtime error clusters, verify passive `/api/health`, explicit `/api/health?probe=voice`, protected manual provider diagnostics, and `/api/research` v31.
-6. If/when application access becomes multi-user/public, add a real authenticated + rate-limited provider-cost boundary instead of treating Fetch Metadata as authorization.
+3. Candidate/production smoke must require Gemini configured true, expected models, exact source/UI/asset refs, artifact selftest and safety asset; Grounding and XiaoZhi live probes remain excluded from ordinary release smoke.
+4. Until deploy is unblocked, continue only with current-code/test-backed or fresh-runtime issues. Do not patch old-production warnings merely to silence them.
+5. After current source reaches production, rerun runtime error clusters and verify passive `/api/health`, explicit `/api/health?probe=voice`, same-origin provider diagnostics, Drive gateway behavior, and `/api/research` v31.
+6. If/when application access becomes multi-user/public, add real authenticated + rate-limited boundaries instead of treating Fetch Metadata as authorization.
 
 ## DO_NOT_BREAK
 - Approved Dashboard v1.5 shell/responsive behavior.
@@ -144,9 +143,11 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - Real DOCX/XLSX/PPTX/PNG artifact generation.
 - XiaoZhi v2.3, browser fallback, barge-in, continuous session and shared text/voice semantics.
 - Runtime Credentials health-only by default; expensive provider/canary probes require explicit user action.
-- Grounding configuration must not be reported as Grounding verification. Unknown stays unknown until an explicit probe.
-- `probe=all` on provider-check must remain passive/zero-provider-call. Explicit Gemini/Grounding probes must be rejected before provider invocation unless they satisfy the same-origin manual diagnostic guard.
-- Default `/api/health` must remain passive with respect to XiaoZhi. Only an explicit voice probe may contact the live gateway, and `NOT PROBED` must not be rendered as `DEGRADED`.
+- Grounding configuration must not be reported as Grounding verification.
+- `probe=all` on provider-check must remain passive/zero-provider-call.
+- Explicit Gemini/Grounding probes must satisfy same-origin diagnostic guard before provider invocation.
+- Default `/api/health` must remain passive with respect to XiaoZhi; `NOT PROBED` must not be rendered as `DEGRADED`.
+- Production `/api/drive-brain` must remain routed through `api/drive-brain-gateway.ts`; cross-site/direct-browser requests must fail before readonly Drive provider invocation.
 - Provider quota regression remains in canonical source-policy.
 - Operations Center honest telemetry; no fake progress/quota/latency/provider health.
 - Deployment remains fail-closed; candidate never receives production traffic before smoke passes.
@@ -155,5 +156,5 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - Vercel CLI remains pinned to `59.11.7` until an intentional upgrade is revalidated.
 
 ## DEPLOYMENT_STATUS
-SOURCE READY / SOURCE QA PASS through PHASE 39 at feature baseline `65e9c2243c28a2adc98e0745083027b261b64ce4` before this checkpoint commit.
+SOURCE READY / SOURCE QA PASS through PHASE 40 at feature baseline `70f20982c4d29f9399c8a93ea9ba9968deafbb0e` before this checkpoint commit.
 PRODUCTION BLOCKED / NOT UPDATED / NOT VERIFIED because `VERCEL_TOKEN` is missing. Last verified live source remains `825dbf8073284eadc38800245f42d4f70f647c98`.
