@@ -40,15 +40,20 @@ export default async function handler(req, res) {
 
     html = html
       .replace(/<script type="module" src="\/src\/bootstrap-v17\.js(?:\?[^\"]*)?"><\/script>/g, '')
-      .replace(/<script type="module" src="\/src\/bootstrap-v18\.js(?:\?[^\"]*)?"><\/script>/g, '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>')
+      .replace(/<script type="module" src="\/src\/office-v2\/ui-v2-shell\.js(?:\?[^\"]*)?"><\/script>/g, '')
+      .replace(/<script type="module" src="\/src\/bootstrap-v18\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/release-v193\.js(?:\?[^\"]*)?"><\/script>/g, '');
 
-    if (!html.includes('/src/bootstrap-v18.js')) {
-      const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
-      html = html.includes('</body>') ? html.replace('</body>', `${bootstrap}</body>`) : `${html}${bootstrap}`;
+    const uiPreload = '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">';
+    if (!html.includes('/src/office-v2/ui-v2-shell.js?v=3002')) {
+      html = html.includes('</head>') ? html.replace('</head>', `${uiPreload}</head>`) : `${uiPreload}${html}`;
     }
+
+    const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>';
+    const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
     const releaseSync = '<script type="module" src="/src/release-v193.js?v=193"></script>';
-    html = html.includes('</body>') ? html.replace('</body>', `${releaseSync}</body>`) : `${html}${releaseSync}`;
+    const runtimeScripts = `${earlyUi}${bootstrap}${releaseSync}`;
+    html = html.includes('</body>') ? html.replace('</body>', `${runtimeScripts}</body>`) : `${html}${runtimeScripts}`;
     return res.status(200).send(html);
   } catch (error) {
     console.error('app_shell_error', { message: String(error?.message || error).slice(0, 220) });
