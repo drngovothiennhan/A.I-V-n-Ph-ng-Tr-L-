@@ -1,4 +1,4 @@
-export const LEAN_DASHBOARD_VERSION='3.1.0-active-only';
+export const LEAN_DASHBOARD_VERSION='3.1.1-active-only';
 
 const DONE_RE=/(hoàn tất|đã hủy|hủy xét duyệt|đã duyệt|completed|cancelled|rejected)/i;
 const READY_ZERO_RE=/(sẵn sàng|0%|0 task|0 nhiệm vụ|chưa có)/i;
@@ -85,8 +85,9 @@ function compactCommunity(){
 
 function reduceFloatingClutter(){
   if(innerWidth>700)return;
+  const runtime=document.getElementById('cred22Launcher');if(runtime)runtime.hidden=true;
   for(const button of document.querySelectorAll('button,[role="button"]')){
-    if(/^runtime$/i.test(text(button)))button.hidden=true;
+    if(/runtime/i.test(text(button)))button.hidden=true;
   }
 }
 
@@ -95,7 +96,7 @@ function addLeanCss(){
   const style=document.createElement('style');style.id='ai-v2-lean-style';style.textContent=`
 body.aiOfficeUIV2 .lower,body.aiOfficeUIV2 .brain,body.aiOfficeUIV2 .two{content-visibility:auto;contain-intrinsic-size:260px 520px}
 body.aiOfficeUIV2 [hidden]{display:none!important}
-@media(max-width:700px){body.aiOfficeUIV2 .footer{display:none}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2TaskHead p{display:none}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2JobMeta{opacity:.78}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2Delegation{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+@media(max-width:700px){body.aiOfficeUIV2 #cred22Launcher{display:none!important}body.aiOfficeUIV2 .footer{display:none}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2TaskHead p{display:none}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2JobMeta{opacity:.78}body.aiOfficeUIV2 #aiV2TaskWorkspace .aiV2Delegation{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 `;
   document.head.appendChild(style);
 }
