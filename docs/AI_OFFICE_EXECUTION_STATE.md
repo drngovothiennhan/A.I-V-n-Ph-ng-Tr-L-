@@ -3,8 +3,8 @@
 Updated: 2026-09-12
 
 ## CURRENT_PHASE
-PHASE 21–25 COMPLETE — PROVIDER ROUTING / SMOKE / XIAOZHI TELEMETRY / DEPLOY PATH VERIFICATION
-NEXT: production deployment remains BLOCKED by missing `VERCEL_TOKEN`. Continue only with source issues backed by current tests or fresh runtime evidence.
+PHASE 21–26 COMPLETE — PROVIDER ROUTING / SMOKE / XIAOZHI TELEMETRY / DEPLOY PATH / EXACT SOURCE COMMIT STAMPING
+NEXT: production remains BLOCKED by missing `VERCEL_TOKEN`. Continue only with current-source issues proven by tests or fresh runtime evidence.
 
 ## CURRENT_OBJECTIVE
 Continue additive, production-safe hardening from the canonical orchestrator, Operations Center, truthful deployment gate, research-v31 route, provider routing and voice fallback. Preserve Dashboard v1.5 and all working automation/artifact/source/voice contracts. Keep SOURCE READY separate from PRODUCTION VERIFIED.
@@ -24,10 +24,11 @@ Continue additive, production-safe hardening from the canonical orchestrator, Op
 - PHASE 19 deployment truthfulness: missing `VERCEL_TOKEN` FAILS `deploy-production`; skipped deployment can no longer appear green. Production smoke requires exact `x-ai-office-source-commit == GITHUB_SHA`.
 - PHASE 20 stable `/api/research` corrected to `api/research.ts -> research-v31.js`; obsolete v29 Vercel rewrite removed.
 - PHASE 21 Gemini model routing corrected: primary `gemini-3.8-flash`; economy `gemini-3.5-flash-lite`.
-- PHASE 22 production smoke also requires the live primary/economy Gemini model contract plus artifact selftest and research-safety asset.
-- PHASE 23 XiaoZhi transient health event verified without speculative patching: one `VOICE_RENDER_UNREACHABLE` sample at 00:11:54Z recovered at 00:12:47Z to `runtimeReady=true`, gateway release `xiaozhi-render-gateway-1.2.0`; Vercel showed no `/api/health` runtime errors in the surrounding 30 minutes and no matching `VOICE_RENDER` logs in 15 minutes. Classified transient; browser fallback retained.
-- PHASE 24 XiaoZhi telemetry alignment: `src/voice-render-bridge-v23.js` is `2.3-render-xiaozhi-direct` and health reports voice render `2.3`; `api/provider-check.ts` incorrectly advertised `voiceRenderVersion: 3.0`. Provider-check now uses a single `XIAOZHI_VOICE_RENDER_VERSION='2.3'` contract and probe user-agent 2.3. Runtime/WebSocket behavior was not changed.
-- PHASE 25 deployment-path verification: Vercel project ID/domain/deployment are confirmed, but current Vercel deployment metadata exposes no Git commit/repo metadata and current GitHub commits show zero external commit statuses. Native Vercel Git auto-deploy is therefore NOT proven. Do not bypass the tested token-based workflow or invoke an unscoped deployment tool.
+- PHASE 22 production smoke requires live primary/economy Gemini model contract plus artifact selftest and research-safety asset.
+- PHASE 23 XiaoZhi transient health event verified without speculative patching: one `VOICE_RENDER_UNREACHABLE` sample recovered on immediate retry; no matching Vercel health/runtime error cluster; browser fallback retained.
+- PHASE 24 XiaoZhi telemetry alignment: provider-check now reports the real voice render version `2.3`, matching `src/voice-render-bridge-v23.js` and `api/health.ts`; runtime/WebSocket behavior unchanged.
+- PHASE 25 Vercel deployment-path verification: correct project/domain/deployment confirmed, but native Git auto-deploy linkage is NOT proven by available deployment metadata or GitHub external statuses. Do not bypass the tested token-based workflow or invoke an unscoped deployment tool.
+- PHASE 26 exact source-commit stamping: Vercel documentation confirms `--prebuilt` deployments must not rely on implicit Git-trigger system metadata. `api/health.ts` now emits `x-ai-office-source-commit` from `AI_OFFICE_SOURCE_COMMIT`, falling back to `VERCEL_GIT_COMMIT_SHA` then `unknown`. The production deployment command explicitly passes `--env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA"`; exact-commit smoke therefore verifies a deliberately stamped SHA rather than hidden Vercel Git state.
 
 ## VERIFIED CI
 - PHASE 19 branch #167 (`34655869441`): PASS full source suite.
@@ -39,11 +40,13 @@ Continue additive, production-safe hardening from the canonical orchestrator, Op
 - PHASE 22 branch #174 (`34660739270`): PASS full source suite + provider smoke contract.
 - PHASE 22 main #175 (`34660761254`): source PASS; deploy BLOCKED.
 - PHASE 24 branch #177 (`34661027101`): PASS full source suite + XiaoZhi version telemetry contract.
-- PHASE 24 main #178 (`34661066079`): source PASS; deploy-production FAIL/BLOCKED at `Require deployment credential` because `VERCEL_TOKEN` is absent.
+- PHASE 24 main #178 (`34661066079`): source PASS; deploy BLOCKED at credential gate.
+- PHASE 26 branch #180 (`34661401183`): PASS full source suite + runtime source-commit regression.
+- PHASE 26 main #181 (`34661444190`): source-policy PASS full suite; deploy-production FAIL/BLOCKED at `Require deployment credential` because `VERCEL_TOKEN` is absent.
 - `npm audit --omit=dev --audit-level=high`: PASS in all current full suites.
 
 ## SOURCE_STATE
-- Feature baseline through PHASE 24: `673a0af222b05e5c3e31810e910cd9d448320773` before this checkpoint documentation commit.
+- Feature baseline through PHASE 26 before this checkpoint documentation commit: `33f4dea6d21e3f02a1e8122f10270d6624ab0705`.
 - Key files/contracts include:
   - `src/ai-orchestrator-core-v32.js`
   - `src/context-manager-v35.js`
@@ -68,16 +71,18 @@ Continue additive, production-safe hardening from the canonical orchestrator, Op
   - `tests/gemini-economy-model-v40.test.mjs`
   - `tests/provider-smoke-contract-v41.test.mjs`
   - `tests/xiaozhi-version-contract-v42.test.mjs`
+  - `tests/source-commit-runtime-v43.test.mjs`
 
 ## PRODUCTION_STATUS
 - Vercel project: `ai-van-phong-tro-ly` (`prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc`).
 - Team: `team_zMTBj85c4Dh5QoDNIjWqQRTg`.
 - Production domain: `https://ai-van-phong-tro-ly.vercel.app`.
 - Latest known production deployment: `dpl_DfW8oQE4WTrsQTJxLVWtVmfi3sca`, READY, target production.
-- Latest live checks still report `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98` (a real GitHub commit from 2026-09-11), so current source through PHASE 24 is NOT production-verified.
-- Old production health currently reports Gemini primary `gemini-3.8-flash` and economy `gemini-3.5-flash-lite`; that does not prove current source deployment because the source header remains stale.
+- Live `/api/health` at 2026-09-12T00:24Z still reports `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
+- Therefore current source through PHASE 26 is NOT production-verified.
+- Old production health currently reports Gemini primary `gemini-3.8-flash`, economy `gemini-3.5-flash-lite`, and XiaoZhi gateway ready; those values do not prove current source deployment because the source header remains stale.
 - Deployment is fail-closed. Without `VERCEL_TOKEN`, Install/Pull/Build/Deploy/Smoke do not run.
-- Native Vercel Git auto-deploy linkage is not proven by available metadata/statuses and must not be assumed.
+- Native Vercel Git auto-deploy linkage is not proven and must not be assumed.
 
 ## AI_PROVIDER_STATUS
 - Gemini: CONFIGURED / DEGRADED because the latest explicit Google Search Grounding probe observed HTTP 429. Public-source fallback remains available.
@@ -104,12 +109,13 @@ Continue additive, production-safe hardening from the canonical orchestrator, Op
 - Gemini Grounding must recover from 429 before provider health can be marked fully healthy.
 
 ## NEXT_ACTION
-1. Configure `VERCEL_TOKEN`; this is the highest-value external unblock.
-2. Once token exists, run the existing workflow: Vercel pull -> build -> prebuilt production deploy -> smoke.
+1. Configure `VERCEL_TOKEN`; this remains the highest-value external unblock.
+2. Once token exists, run the existing workflow: Vercel pull -> build -> `deploy --prebuilt --prod --env AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA` -> smoke.
 3. Smoke must verify exact current source SHA, primary/economy Gemini models, artifact engine selftest and research-safety asset.
-4. After current source reaches production, rerun runtime error clusters and compare Chief/research/provider/loader behavior against PHASE 18 baseline.
-5. Validate `/api/research` actually serves v31 behavior in production.
-6. Re-check XiaoZhi only if new health/log evidence shows repeated unreachability; otherwise preserve current runtime and browser fallback.
+4. Until deployment is unblocked, continue only with source-side issues proven by current code/tests or fresh runtime evidence.
+5. After current source reaches production, rerun runtime error clusters and compare Chief/research/provider/loader behavior against PHASE 18 baseline.
+6. Validate `/api/research` actually serves v31 behavior in production.
+7. Re-check XiaoZhi only if new health/log evidence shows repeated unreachability; otherwise preserve current runtime and browser fallback.
 
 ## DO_NOT_BREAK
 - Approved Dashboard v1.5 shell/responsive behavior.
@@ -127,7 +133,8 @@ Continue additive, production-safe hardening from the canonical orchestrator, Op
 - Operations Center honest telemetry: no fake progress, quota, latency or health.
 - Chief timeout fallback stays fail-fast/honest; arbitrary non-timeout errors must not become fake success.
 - Deployment remains fail-closed: missing credential, wrong provider config, failed selftest, missing safety asset or source-commit mismatch must never be reported as production success.
+- Exact source-commit verification must use explicit runtime stamping for CLI/prebuilt deployments and must not silently rely on Git-trigger metadata.
 
 ## DEPLOYMENT_STATUS
-SOURCE READY / SOURCE QA PASS through PHASE 24 at feature baseline `673a0af222b05e5c3e31810e910cd9d448320773` before this checkpoint commit.
+SOURCE READY / SOURCE QA PASS through PHASE 26 at feature baseline `33f4dea6d21e3f02a1e8122f10270d6624ab0705` before this checkpoint commit.
 PRODUCTION BLOCKED / NOT UPDATED / NOT VERIFIED because `VERCEL_TOKEN` is missing. Live source remains `825dbf8073284eadc38800245f42d4f70f647c98`.
