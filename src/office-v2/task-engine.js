@@ -16,9 +16,48 @@ export const TASK_TRANSITIONS=freezeContract({
   [S.CANCELLED]:[S.PLANNING]
 });
 
+export const TASK_STORAGE_VERSION=1;
+export const DEFAULT_TASK_STORAGE_KEY='ai-office-v2-tasks-v1';
+export const DEFAULT_TASK_STORAGE_LIMIT=80;
+const MAX_PERSISTED_HISTORY=120;
+const SENSITIVE_METADATA_KEY=/(?:^|_)(?:token|secret|password|authorization|credential|api[_-]?key)(?:$|_)/i;
+
 function now(){return new Date().toISOString()}
 function id(){return globalThis.crypto?.randomUUID?.()||`task-${Date.now()}-${Math.random().toString(36).slice(2,8)}`}
-function copy(task){return JSON.parse(JSON.stringify(task))}
+function copy(value){return JSON.parse(JSON.stringify(value))}
+function safeStorage(storage){
+  if(storage)return storage;
+  try{return typeof localStorage!=='undefined'?localStorage:null}catch{return null}
+}
+function sanitizeMetadata(metadata={}){
+  if(!metadata||typeof metadata!=='object'||Array.isArray(metadata))return{};
+  const safe={};
+  for(const [key,value] of Object.entries(metadata)){
+    if(SENSITIVE_METADATA_KEY.test(String(key))||value===undefined)continue;
+    try{safe[key]=copy(value)}catch{}
+  }
+  return safe;
+}
+function taskForPersistence(task){
+  const next=copy(task);
+  next.metadata=sanitizeMetadata(next.metadata);
+  if(Array.isArray(next.history)&&next.history.length>MAX_PERSISTED_HISTORY)next.history=next.history.slice(-MAX_PERSISTED_HISTORY);
+  return next;
+}
+function readPersistedRows(storage,key){
+  if(!storage)return[];
+  try{
+    const raw=storage.getItem(key);
+    if(!raw)return[];
+    const payload=JSON.parse(raw);
+    if(Array.isArray(payload))return payload;
+    if(!payload||payload.version!==TASK_STORAGE_VERSION||!Array.isArray(payload.rows))return[];
+    return payload.rows;
+  }catch{return[]}
+}
+function writePersistedRows(storage,key,rows){
+  storage.setItem(key,JSON.stringify({version:TASK_STORAGE_VERSION,updatedAt:now(),rows}));
+}
 
 export function createTask({requestId,title,instruction,plan,metadata={}}={}){
   const text=String(instruction||'').trim();
@@ -61,9 +100,49 @@ export class MemoryTaskRepository{
   async list(){return [...this.#rows.values()].map(copy)}
 }
 
+export class BrowserTaskRepository{
+  constructor({storage,key=DEFAULT_TASK_STORAGE_KEY,limit=DEFAULT_TASK_STORAGE_LIMIT}={}){
+    this.storage=safeStorage(storage);
+    this.key=String(key||DEFAULT_TASK_STORAGE_KEY);
+    this.limit=Math.max(10,Math.min(500,Number(limit)||DEFAULT_TASK_STORAGE_LIMIT));
+    this.fallback=new MemoryTaskRepository();
+  }
+  async save(task){
+    if(!task?.id)throw new TypeError('task_id_required');
+    const persisted=taskForPersistence(task);
+    if(!this.storage)return this.fallback.save(persisted);
+    const rows=readPersistedRows(this.storage,this.key);
+    const current=rows.find(row=>row?.id===persisted.id);
+    if(current&&Number(persisted.revision||0)<Number(current.revision||0))throw new Error('task_revision_conflict');
+    const next=[persisted,...rows.filter(row=>row?.id!==persisted.id)]
+      .sort((a,b)=>String(b?.updatedAt||'').localeCompare(String(a?.updatedAt||'')))
+      .slice(0,this.limit);
+    try{writePersistedRows(this.storage,this.key,next)}catch{return this.fallback.save(persisted)}
+    return copy(persisted);
+  }
+  async get(idValue){
+    if(!this.storage)return this.fallback.get(idValue);
+    const row=readPersistedRows(this.storage,this.key).find(item=>item?.id===idValue);
+    return row?copy(row):null;
+  }
+  async list(){
+    if(!this.storage)return this.fallback.list();
+    return readPersistedRows(this.storage,this.key).map(copy);
+  }
+  async clear(){
+    if(!this.storage){this.fallback=new MemoryTaskRepository();return true}
+    try{this.storage.removeItem(this.key);return true}catch{return false}
+  }
+}
+
+export function createPersistentTaskRepository(options={}){return new BrowserTaskRepository(options)}
+export function createPersistentTaskEngine(options={}){return new TaskEngine(createPersistentTaskRepository(options))}
+
 export class TaskEngine{
   constructor(repository=new MemoryTaskRepository()){this.repository=repository}
   async create(input){const task=createTask(input);return this.repository.save(task)}
+  async get(taskId){return this.repository.get(taskId)}
+  async list(){return this.repository.list()}
   async move(taskId,to,options={}){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(transitionTask(task,to,options))}
   async cancel(taskId,reason){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(cancelTask(task,reason))}
   async pause(taskId){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(pauseTask(task))}
