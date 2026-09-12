@@ -17,8 +17,10 @@ test('Office V2 production release remains candidate-first with exact-source gat
 });
 
 test('protected candidate smoke uses deployment-scoped share bypass and revokes it before promotion',()=>{
-  assert.match(release,/api\.vercel\.com\/aliases\/\$CANDIDATE_ID\/protection-bypass/);
+  assert.match(release,/api\.vercel\.com\/aliases\/\$CANDIDATE_REF\/protection-bypass/);
+  assert.match(release,/host=\$HOST/);
   assert.match(release,/--data '\{\"ttl\":900\}'/);
+  assert.match(release,/r\?\.value \?\? r\?\.protectionBypass/);
   assert.match(release,/VERCEL_SHARE_BYPASS=\$SHARE_VALUE/);
   assert.match(release,/_vercel_share=\$VERCEL_SHARE_BYPASS/);
   assert.match(release,/--location/);
