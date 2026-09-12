@@ -17,15 +17,15 @@ test('quoted meta questions are analysis only, never direct task instructions',(
 test('canonical input gate is guaranteed before legacy bootstrap',()=>{
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
   const ui=app.indexOf("await import('/src/office-v2/ui-v2-shell.js?v=3002')");
-  const leanUi=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3100')");
+  const leanUi=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3110')");
   const legacy=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
   const releaseSync=app.indexOf("await import('/src/release-v193.js?v=193')");
   assert.ok(gate>=0&&ui>gate&&leanUi>ui&&legacy>leanUi&&releaseSync>legacy);
   assert.match(app,/Mặc định: trả lời ngắn gọn\. Chỉ tạo nhiệm vụ hoặc file khi bạn yêu cầu rõ\./);
 });
 
-test('lean dashboard hides terminal and zero-value noise without deleting source data',()=>{
-  assert.equal(LEAN_DASHBOARD_VERSION,'3.1.0-active-only');
+test('lean dashboard hides terminal, zero-value and mobile runtime noise without deleting source data',()=>{
+  assert.equal(LEAN_DASHBOARD_VERSION,'3.1.1-active-only');
   assert.match(lean,/DONE_RE/);
   assert.match(lean,/compactJobs/);
   assert.match(lean,/compactDepartments/);
@@ -33,16 +33,18 @@ test('lean dashboard hides terminal and zero-value noise without deleting source
   assert.match(lean,/compactReports/);
   assert.match(lean,/compactLearning/);
   assert.match(lean,/hideRest\(jobs,3\)/);
+  assert.match(lean,/getElementById\('cred22Launcher'\)/);
+  assert.match(lean,/#cred22Launcher\{display:none!important\}/);
   assert.doesNotMatch(lean,/localStorage\.(?:setItem|removeItem|clear)/);
   assert.doesNotMatch(lean,/fetch\s*\(/);
   assert.doesNotMatch(lean,/\.remove\s*\(/);
 });
 
-test('release re-applies lean visibility after dynamic modules render',()=>{
-  assert.match(release,/const LEAN_UI = '3\.1\.0-active-only'/);
+test('release re-applies refreshed lean visibility after dynamic modules render',()=>{
+  assert.match(release,/const LEAN_UI = '3\.1\.1-active-only'/);
   const workspace=release.indexOf("task-workspace.js?v=2101");
   const ui=release.indexOf("ui-v2-shell.js?v=3002");
-  const leanUi=release.indexOf("lean-dashboard-v72.js?v=3100");
+  const leanUi=release.indexOf("lean-dashboard-v72.js?v=3110");
   assert.ok(workspace>=0&&ui>workspace&&leanUi>ui);
   assert.match(release,/installLeanDashboard/);
 });
