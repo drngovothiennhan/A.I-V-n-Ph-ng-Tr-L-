@@ -6,10 +6,30 @@ const FORMATS = ['docx', 'xlsx', 'pptx'];
 function isZipBuffer(buffer) {
   return Buffer.isBuffer(buffer) && buffer.length > 100 && buffer.subarray(0, 4).toString('hex') === '504b0304';
 }
+function sourceCommit() {
+  return String(process.env.AI_OFFICE_SOURCE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || '').trim();
+}
+function releaseMarker(req) {
+  const raw = req.headers?.['x-ai-office-selftest-source'];
+  return String(Array.isArray(raw) ? raw[0] : raw || '').trim();
+}
 
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
-  if (req.method !== 'GET') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+  res.setHeader('x-content-type-options', 'nosniff');
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED', artifactWorkPerformed: false });
+  }
+
+  const expectedSource = sourceCommit();
+  const suppliedSource = releaseMarker(req);
+  if (!expectedSource || !suppliedSource || suppliedSource !== expectedSource) {
+    return res.status(403).json({
+      error: 'SELFTEST_RELEASE_MARKER_REQUIRED',
+      artifactWorkPerformed: false
+    });
+  }
 
   const result = {};
   for (const format of FORMATS) {
@@ -30,9 +50,11 @@ export default async function handler(req, res) {
   }
 
   const pass = Object.values(result).every((x) => x?.pass === true);
+  res.setHeader('x-ai-office-selftest-source', expectedSource);
   return res.status(pass ? 200 : 500).json({
     pass,
     release: RELEASE,
+    sourceCommit: expectedSource,
     engine: 'internal-office-xml-v24',
     artifacts: result,
     timestamp: new Date().toISOString()
