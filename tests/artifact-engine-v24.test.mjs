@@ -42,8 +42,10 @@ for (const [name, gateway, delegate] of [
   assert.ok(guardIndex >= 0 && delegateIndex > guardIndex, `${name}: guard must execute before canonical handler`);
 }
 
-assert.match(imageGateway, /import image from '\.\/image\.ts'/, 'image gateway must delegate to canonical Gemini image handler');
-assert.match(ingestGateway, /import ingest from '\.\/ingest\.ts'/, 'ingest gateway must delegate to canonical Office parser handler');
+assert.match(imageGateway, /import image from '\.\/image'/, 'image gateway must delegate to canonical Gemini image handler');
+assert.doesNotMatch(imageGateway, /from ['"]\.\/image\.ts['"]/,'image gateway import must remain TypeScript-build compatible');
+assert.match(ingestGateway, /import ingest from '\.\/ingest'/, 'ingest gateway must delegate to canonical Office parser handler');
+assert.doesNotMatch(ingestGateway, /from ['"]\.\/ingest\.ts['"]/,'ingest gateway import must remain TypeScript-build compatible');
 const imageRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/image');
 const ingestRewrite = (vercel.rewrites || []).find(row => row?.source === '/api/ingest');
 assert.equal(imageRewrite?.destination, '/api/image-gateway', 'production /api/image must route through secure gateway');

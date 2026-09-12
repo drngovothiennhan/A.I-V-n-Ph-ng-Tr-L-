@@ -21,7 +21,8 @@ assert.doesNotMatch(drive, /DRIVE_BRAIN_REGISTRY\.scopes\[scope\]\?\.id/, 'scope
 assert.doesNotMatch(drive, /https:\/\/www\.googleapis\.com\/auth\/drive(?!\.readonly)/, 'write-capable Drive OAuth scope is forbidden');
 assert.doesNotMatch(drive, /files\/[^\s'"`]+\/permissions/, 'provider must not mutate Drive permissions');
 
-assert.match(gateway, /import driveBrain from '\.\/drive-brain\.ts'/, 'gateway must delegate to the canonical readonly Drive handler');
+assert.match(gateway, /import driveBrain from '\.\/drive-brain'/, 'gateway must delegate to the canonical readonly Drive handler');
+assert.doesNotMatch(gateway, /from ['"]\.\/drive-brain\.ts['"]/,'gateway import must remain TypeScript-build compatible');
 assert.match(gateway, /req\.method !== 'POST'/, 'Drive gateway must reject non-POST access');
 assert.match(gateway, /application\/json/, 'Drive gateway must require JSON requests');
 assert.match(gateway, /function sameOriginDriveRequest\(req\)/, 'Drive gateway must enforce a same-origin request boundary');

@@ -1,4 +1,4 @@
-import research from './research.ts';
+import research from './research';
 
 function json(res, status, body) {
   res.setHeader('cache-control', 'no-store');

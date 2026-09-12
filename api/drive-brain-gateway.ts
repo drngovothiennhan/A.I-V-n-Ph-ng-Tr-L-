@@ -1,4 +1,4 @@
-import driveBrain from './drive-brain.ts';
+import driveBrain from './drive-brain';
 
 function json(res, status, body) {
   res.setHeader('cache-control', 'no-store');
