@@ -1,4 +1,4 @@
-import image from './image';
+import image from './image.js';
 
 function json(res, status, body) {
   res.setHeader('cache-control', 'no-store');
