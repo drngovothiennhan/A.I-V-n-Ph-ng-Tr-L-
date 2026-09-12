@@ -1,0 +1,38 @@
+name: Office V2 Shadow Core QA
+
+on:
+  push:
+    branches: [ai-office-v57-office-core-v2]
+  pull_request:
+    paths:
+      - 'src/office-v2/**'
+      - 'tests/office-v2-*.test.mjs'
+      - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
+      - '.github/workflows/quality-office-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  office-v2-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax check additive Office V2 core
+        run: |
+          node --check src/office-v2/contracts.js
+          node --check src/office-v2/knowledge-gateway.js
+          node --check src/office-v2/task-engine.js
+          node --check src/office-v2/chief-of-staff.js
+          node --check src/office-v2/legacy-bridge.js
+          node --check src/office-v2/index.js
+      - name: Office V2 contract tests
+        run: node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs
+      - name: Protect Phase 56 production contracts
+        run: |
+          node --test tests/ai-orchestrator-core-v32.test.mjs
+          node --test tests/proxy-chief-resilience-v37.test.mjs
+          node --test tests/vercel-function-budget-v54.test.mjs
+          node --test tests/vercel-gateway-esm-runtime-v56.test.mjs
