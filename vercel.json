@@ -7,9 +7,24 @@
     "GEMINI_MODEL": "gemini-3.8-flash",
     "XIAOZHI_PROTOCOL_VERSION": "1"
   },
+  "builds": [
+    { "src": "api/app.ts", "use": "@vercel/node" },
+    { "src": "api/asset.ts", "use": "@vercel/node" },
+    { "src": "api/drive-brain-gateway.ts", "use": "@vercel/node" },
+    { "src": "api/health-legacy-retired.ts", "use": "@vercel/node" },
+    { "src": "api/health.ts", "use": "@vercel/node" },
+    { "src": "api/image-gateway.ts", "use": "@vercel/node" },
+    { "src": "api/ingest-gateway.ts", "use": "@vercel/node" },
+    { "src": "api/provider-check.ts", "use": "@vercel/node" },
+    { "src": "api/proxy-gateway.ts", "use": "@vercel/node" },
+    { "src": "api/research-gateway.ts", "use": "@vercel/node" },
+    { "src": "api/research-legacy-retired.ts", "use": "@vercel/node" },
+    { "src": "api/selftest.ts", "use": "@vercel/node" }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/api/app" },
     { "source": "/api/health-v17", "destination": "/api/health-legacy-retired" },
+    { "source": "/api/ws-xiaozhi", "destination": "/api/research-legacy-retired?kind=voice" },
     { "source": "/api/drive-brain", "destination": "/api/drive-brain-gateway" },
     { "source": "/api/research", "destination": "/api/research-gateway" },
     { "source": "/api/research-v28", "destination": "/api/research-legacy-retired" },
