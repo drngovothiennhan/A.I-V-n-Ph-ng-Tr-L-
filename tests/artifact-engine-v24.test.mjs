@@ -11,10 +11,8 @@ for (const format of formats) {
   assert.ok(Buffer.isBuffer(artifact.buffer), `${format}: output must be Buffer`);
   assert.ok(artifact.buffer.length > 500, `${format}: output too small`);
   assert.equal(artifact.buffer.subarray(0, 4).toString('hex'), '504b0304', `${format}: not a ZIP-based Office file`);
-
   const marker = format === 'docx' ? 'word/document.xml' : format === 'xlsx' ? 'xl/workbook.xml' : 'ppt/presentation.xml';
   assert.ok(artifact.buffer.includes(Buffer.from(marker)), `${format}: package marker missing`);
-
   const parsed = parseOfficeBuffer(format, artifact.buffer);
   assert.ok(parsed.length > 10, `${format}: round-trip parser returned empty content`);
   assert.match(parsed, /A\.I Văn phòng|BÁO CÁO KIỂM THỬ|QA/, `${format}: round-trip content mismatch`);
@@ -31,9 +29,7 @@ for (const [name, gateway, delegate] of [
   assert.match(gateway, /req\.method !== 'POST'/, `${name}: gateway must reject non-POST requests`);
   assert.match(gateway, /application\/json/, `${name}: gateway must require JSON requests`);
   assert.match(gateway, /function sameOriginResourceRequest\(req\)/, `${name}: gateway must enforce same-origin metadata`);
-  for (const marker of ['x-forwarded-host','referer','sec-fetch-site','sec-fetch-mode','sec-fetch-dest']) {
-    assert.ok(gateway.includes(marker), `${name}: gateway must inspect ${marker}`);
-  }
+  for (const marker of ['x-forwarded-host','referer','sec-fetch-site','sec-fetch-mode','sec-fetch-dest']) assert.ok(gateway.includes(marker), `${name}: gateway must inspect ${marker}`);
   assert.match(gateway, /site && site !== 'same-origin'/, `${name}: cross-site requests must be rejected`);
   assert.match(gateway, /AI_RESOURCE_SAME_ORIGIN_REQUIRED/, `${name}: rejection reason must be explicit`);
   assert.match(gateway, /providerCallMade:\s*false/, `${name}: rejected requests must confirm no provider/runtime call`);
@@ -42,10 +38,10 @@ for (const [name, gateway, delegate] of [
   assert.ok(guardIndex >= 0 && delegateIndex > guardIndex, `${name}: guard must execute before canonical handler`);
 }
 
-assert.match(imageGateway, /import image from '\.\/image'/, 'image gateway must delegate to canonical Gemini image handler');
-assert.doesNotMatch(imageGateway, /from ['"]\.\/image\.ts['"]/,'image gateway import must remain TypeScript-build compatible');
-assert.match(ingestGateway, /import ingest from '\.\/ingest'/, 'ingest gateway must delegate to canonical Office parser handler');
-assert.doesNotMatch(ingestGateway, /from ['"]\.\/ingest\.ts['"]/,'ingest gateway import must remain TypeScript-build compatible');
+assert.match(imageGateway, /import image from '\.\/image\.js'/, 'image gateway must use runtime-safe canonical Gemini image import');
+assert.doesNotMatch(imageGateway, /from ['"]\.\/image(?:\.ts)?['"]/,'image gateway must never emit extensionless or .ts runtime import');
+assert.match(ingestGateway, /import ingest from '\.\/ingest\.js'/, 'ingest gateway must use runtime-safe canonical Office parser import');
+assert.doesNotMatch(ingestGateway, /from ['"]\.\/ingest(?:\.ts)?['"]/,'ingest gateway must never emit extensionless or .ts runtime import');
 
 function destination(source){
   const rewrite=(vercel.rewrites||[]).find(row=>row?.source===source);
@@ -55,4 +51,4 @@ function destination(source){
 assert.equal(destination('/api/image'), '/api/image-gateway', 'production /api/image must route through secure gateway');
 assert.equal(destination('/api/ingest'), '/api/ingest-gateway', 'production /api/ingest must route through secure gateway');
 
-console.log('artifact-engine-v24: DOCX/XLSX/PPTX round-trip + image/ingest resource gateways PASS');
+console.log('artifact-engine-v56: Office round-trip + runtime-safe image/ingest gateways PASS');
