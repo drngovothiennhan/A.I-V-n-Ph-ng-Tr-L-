@@ -12,6 +12,8 @@
     { "source": "/api/drive-brain", "destination": "/api/drive-brain-gateway" },
     { "source": "/api/research", "destination": "/api/research-gateway" },
     { "source": "/api/proxy", "destination": "/api/proxy-gateway" },
+    { "source": "/api/image", "destination": "/api/image-gateway" },
+    { "source": "/api/ingest", "destination": "/api/ingest-gateway" },
     { "source": "/manifest.webmanifest", "destination": "/api/asset?path=public/manifest.webmanifest" },
     { "source": "/sw.js", "destination": "/api/asset?path=public/sw.js" },
     { "source": "/icons/:path*", "destination": "/api/asset?path=public/icons/:path*" },
