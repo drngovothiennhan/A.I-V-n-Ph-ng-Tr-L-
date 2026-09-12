@@ -78,6 +78,7 @@ jobs:
           node --check tests/deployment-rollback-recovery-v48.test.mjs
           node --check tests/deployment-gemini-config-v49.test.mjs
           node --check tests/deployment-vercel-cli-pin-v50.test.mjs
+          node --check tests/deployment-header-parser-v51.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -126,6 +127,8 @@ jobs:
         run: node tests/deployment-gemini-config-v49.test.mjs
       - name: Vercel CLI pin regression
         run: node tests/deployment-vercel-cli-pin-v50.test.mjs
+      - name: Release header parser regression
+        run: node tests/deployment-header-parser-v51.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -177,7 +180,7 @@ jobs:
             exit 1
           fi
           curl --fail --silent --show-error -D /tmp/previous-health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/previous-health.json
-          PREVIOUS_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/previous-health.headers | tail -1)"
+          PREVIOUS_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/previous-health.headers | tail -1 | tr -d '\r')"
           echo "id=$PREVIOUS_ID" >> "$GITHUB_OUTPUT"
           echo "url=https://$PREVIOUS_URL" >> "$GITHUB_OUTPUT"
           echo "source_commit=$PREVIOUS_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
@@ -201,21 +204,21 @@ jobs:
           URL="${{ steps.deploy.outputs.url }}"
           vercel curl /api/health --deployment "$URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
           node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('candidate health/provider ok:',h.productCompletion,h.providers?.gemini?.configured,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
-          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/candidate-health.headers | tail -1)"
+          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/candidate-health.headers | tail -1 | tr -d '\r')"
           if [ "$SOURCE_COMMIT" != "$GITHUB_SHA" ]; then
             echo "::error::Candidate source mismatch. expected=$GITHUB_SHA actual=${SOURCE_COMMIT:-missing}"
             exit 1
           fi
 
           vercel curl / --deployment "$URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/candidate-ui.headers -o /tmp/candidate-ui.html
-          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/candidate-ui.headers | tail -1)"
+          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/candidate-ui.headers | tail -1 | tr -d '\r')"
           if [ "$UI_SOURCE_REF" != "$GITHUB_SHA" ]; then
             echo "::error::Candidate dashboard source mismatch. expected=$GITHUB_SHA actual=${UI_SOURCE_REF:-missing}"
             exit 1
           fi
 
           vercel curl /src/research-safety-guard-v263.js --deployment "$URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/candidate-asset.headers -o /tmp/candidate-safety.js
-          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/candidate-asset.headers | tail -1)"
+          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/candidate-asset.headers | tail -1 | tr -d '\r')"
           if [ "$ASSET_SOURCE_REF" != "$GITHUB_SHA" ]; then
             echo "::error::Candidate runtime asset mismatch. expected=$GITHUB_SHA actual=${ASSET_SOURCE_REF:-missing}"
             exit 1
@@ -238,7 +241,7 @@ jobs:
         run: |
           curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 -D /tmp/health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/health.json
           node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1); console.log('production health/provider ok:',h.productCompletion,h.providers?.gemini?.configured,h.providers?.gemini?.model,h.providers?.gemini?.economyModel)"
-          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/health.headers | tail -1)"
+          SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/health.headers | tail -1 | tr -d '\r')"
           if [ "$SOURCE_COMMIT" != "$GITHUB_SHA" ]; then
             echo "::error::Production source mismatch. expected=$GITHUB_SHA actual=${SOURCE_COMMIT:-missing}"
             echo "BLOCKED: promoted production source does not equal validated GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
@@ -246,14 +249,14 @@ jobs:
           fi
 
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/ui.headers https://ai-van-phong-tro-ly.vercel.app/ -o /tmp/ui.html
-          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/ui.headers | tail -1)"
+          UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/ui.headers | tail -1 | tr -d '\r')"
           if [ "$UI_SOURCE_REF" != "$GITHUB_SHA" ]; then
             echo "::error::Production dashboard source mismatch. expected=$GITHUB_SHA actual=${UI_SOURCE_REF:-missing}"
             exit 1
           fi
 
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/asset.headers https://ai-van-phong-tro-ly.vercel.app/src/research-safety-guard-v263.js -o /tmp/safety.js
-          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/asset.headers | tail -1)"
+          ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/asset.headers | tail -1 | tr -d '\r')"
           if [ "$ASSET_SOURCE_REF" != "$GITHUB_SHA" ]; then
             echo "::error::Production runtime asset mismatch. expected=$GITHUB_SHA actual=${ASSET_SOURCE_REF:-missing}"
             exit 1
@@ -288,7 +291,7 @@ jobs:
           fi
 
           curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -D /tmp/rollback-health.headers https://ai-van-phong-tro-ly.vercel.app/api/health -o /tmp/rollback-health.json
-          ROLLBACK_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {gsub(/\r/,\"\",$2); print $2}' /tmp/rollback-health.headers | tail -1)"
+          ROLLBACK_SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/rollback-health.headers | tail -1 | tr -d '\r')"
           if [ -n "$PREVIOUS_SOURCE_COMMIT" ] && [ "$PREVIOUS_SOURCE_COMMIT" != "unknown" ] && [ "$ROLLBACK_SOURCE_COMMIT" != "$PREVIOUS_SOURCE_COMMIT" ]; then
             echo "::error::Rollback deployment ID restored but source commit mismatch. expected=$PREVIOUS_SOURCE_COMMIT actual=${ROLLBACK_SOURCE_COMMIT:-missing}"
             exit 1
