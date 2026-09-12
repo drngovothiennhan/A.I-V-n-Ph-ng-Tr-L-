@@ -51,10 +51,10 @@ export default async function handler(req, res) {
     }
 
     const smartRuntime = '<script type="module" src="/src/v72-smart-runtime.js?v=720"></script>';
-    const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>';
+    const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>' + smartRuntime;
     const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
     const releaseSync = '<script type="module" src="/src/release-v193.js?v=193"></script>';
-    const runtimeScripts = `${smartRuntime}${earlyUi}${bootstrap}${releaseSync}`;
+    const runtimeScripts = `${earlyUi}${bootstrap}${releaseSync}`;
     html = html.includes('</body>') ? html.replace('</body>', `${runtimeScripts}</body>`) : `${html}${runtimeScripts}`;
     return res.status(200).send(html);
   } catch (error) {
