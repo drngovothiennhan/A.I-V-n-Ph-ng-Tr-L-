@@ -79,6 +79,7 @@ jobs:
           node --check tests/deployment-gemini-config-v49.test.mjs
           node --check tests/deployment-vercel-cli-pin-v50.test.mjs
           node --check tests/deployment-header-parser-v51.test.mjs
+          node --check tests/deployment-vercel-link-v52.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -129,6 +130,8 @@ jobs:
         run: node tests/deployment-vercel-cli-pin-v50.test.mjs
       - name: Release header parser regression
         run: node tests/deployment-header-parser-v51.test.mjs
+      - name: Vercel explicit link regression
+        run: node tests/deployment-vercel-link-v52.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -187,8 +190,14 @@ jobs:
           echo "Captured serving production before release: $PREVIOUS_ID ($PREVIOUS_URL), source=${PREVIOUS_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
       - name: Install Vercel CLI
         run: npm install --global vercel@59.11.7
+      - name: Link verified Vercel project
+        shell: bash
+        run: |
+          rm -rf .vercel
+          vercel link --yes --project "$VERCEL_PROJECT_ID" --scope hiu-yhct --token="$VERCEL_TOKEN"
+          node -e "const p=require('./.vercel/project.json'); if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID) process.exit(1); console.log('linked project verified:',p.projectId,p.orgId)"
       - name: Pull production configuration
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        run: vercel pull --yes --environment=production --scope hiu-yhct --token="$VERCEL_TOKEN"
       - name: Build production bundle
         run: vercel build --prod --token="$VERCEL_TOKEN"
       - name: Deploy production candidate without traffic
