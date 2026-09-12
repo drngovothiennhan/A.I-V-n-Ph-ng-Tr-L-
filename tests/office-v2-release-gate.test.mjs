@@ -14,9 +14,21 @@ test('Office V2 production release remains candidate-first with exact-source gat
   assert.match(release,/rollback\/\$PREVIOUS_ID/);
 });
 
+test('protected candidate smoke uses ephemeral automation bypass and revokes it before promotion',()=>{
+  assert.match(release,/\/v1\/projects\/\$VERCEL_PROJECT_ID\/protection-bypass/);
+  assert.match(release,/generate:\{secret:/);
+  assert.match(release,/x-vercel-protection-bypass:/);
+  assert.match(release,/revoke:\{secret:process\.argv\[1\],regenerate:false\}/);
+  const revokeIndex=release.indexOf('Revoke ephemeral automation bypass');
+  const promoteIndex=release.indexOf('Promote verified candidate');
+  assert.ok(revokeIndex>0&&promoteIndex>revokeIndex,'ephemeral bypass must be revoked before promotion');
+  assert.doesNotMatch(release,/vercel curl/,'protected smoke must not depend on Vercel CLI user lookup');
+});
+
 test('Office V2 release retains legacy production regression gates and function budget',()=>{
   assert.match(release,/vercel-function-budget-v54\.test\.mjs/);
   assert.match(release,/vercel-gateway-esm-runtime-v56\.test\.mjs/);
   assert.match(release,/ai-orchestrator-core-v32\.test\.mjs/);
   assert.match(release,/proxy-chief-resilience-v37\.test\.mjs/);
+  assert.match(release,/provider-smoke-contract-v41\.test\.mjs/);
 });
