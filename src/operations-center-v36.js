@@ -98,16 +98,27 @@ function statusRow(name,status,detail='',kind='unknown'){
   const cls=kind==='issue'?'ops36Issue':kind==='healthy'?'ops36Healthy':'ops36Unknown';
   return `<article class="ops36Health ${cls}"><div class="ops36HealthHead"><div><b>${esc(name)}</b><div class="ops36Meta">${esc(detail||'Không có telemetry chi tiết.')}</div></div><span class="ops36State ${kind==='issue'?'warn':kind==='healthy'?'ok':''}">${esc(status)}</span></div></article>`;
 }
-async function fetchHealth(){
+async function fetchHealth({voice=false}={}){
   const start=performance.now();
-  try{const response=await fetch(`${HEALTH_URL}?t=${Date.now()}`,{cache:'no-store'});healthRtt=Math.round(performance.now()-start);if(!response.ok)throw new Error(`HTTP_${response.status}`);const data=await response.json();healthCache={data,sourceCommit:response.headers.get('x-ai-office-source-commit')||'',checkedAt:new Date().toISOString(),error:''};return healthCache}catch(error){healthRtt=Math.round(performance.now()-start);healthCache={data:{},sourceCommit:'',checkedAt:new Date().toISOString(),error:String(error?.message||error)};return healthCache}
+  const url=`${HEALTH_URL}?${voice?'probe=voice&':''}t=${Date.now()}`;
+  try{const response=await fetch(url,{cache:'no-store'});healthRtt=Math.round(performance.now()-start);if(!response.ok)throw new Error(`HTTP_${response.status}`);const data=await response.json();healthCache={data,sourceCommit:response.headers.get('x-ai-office-source-commit')||'',checkedAt:new Date().toISOString(),error:''};return healthCache}catch(error){healthRtt=Math.round(performance.now()-start);healthCache={data:{},sourceCommit:'',checkedAt:new Date().toISOString(),error:String(error?.message||error)};return healthCache}
 }
 function healthRows(cache,showAll=false){
   const h=cache?.data||{},providers=h?.providers||{},setup=h?.setup||{},tasks=getJson(TASK_KEY,[]),failed=tasks.filter(t=>canonicalTaskState(t?.status)==='FAILED'),last=latestCompleted(tasks);
-  const gemini=Boolean(providers?.gemini?.configured||setup?.gemini?.ready),xiaozhi=Boolean(providers?.xiaozhi?.runtimeReady||h?.voice?.renderGatewayReady),drive=Boolean(providers?.googleDriveRuntime?.configured||h?.brain?.driveRuntimeConfigured),workspace=Boolean(providers?.googleWorkspace?.configured);
+  const gemini=Boolean(providers?.gemini?.configured||setup?.gemini?.ready),drive=Boolean(providers?.googleDriveRuntime?.configured||h?.brain?.driveRuntimeConfigured),workspace=Boolean(providers?.googleWorkspace?.configured);
+  const xiaozhiConfigured=Boolean(providers?.xiaozhi?.configured||setup?.xiaozhi?.ready);
+  const xiaozhiStatus=providers?.xiaozhi?.runtimeStatus||h?.voice?.renderGatewayStatus||'not-probed';
+  const xiaozhiReady=providers?.xiaozhi?.runtimeReady===true||h?.voice?.renderGatewayReady===true;
+  const xiaozhiRow=!xiaozhiConfigured
+    ?{name:'XiaoZhi Voice',status:'NOT CONFIGURED',detail:'XiaoZhi chưa được cấu hình; browser voice vẫn là fallback.',kind:'issue'}
+    :xiaozhiReady
+      ?{name:'XiaoZhi Voice',status:'READY',detail:'Live probe xác nhận gateway voice sẵn sàng; browser fallback được giữ.',kind:'healthy'}
+      :xiaozhiStatus!=='not-probed'
+        ?{name:'XiaoZhi Voice',status:'DEGRADED',detail:'Live probe chưa xác nhận gateway; browser fallback vẫn được giữ.',kind:'issue'}
+        :{name:'XiaoZhi Voice',status:'CONFIGURED / NOT PROBED',detail:'Passive health không gọi Render. Bấm “Kiểm tra XiaoZhi” để chạy live probe khi cần.',kind:'unknown'};
   const rows=[
     {name:'Gemini',status:gemini?'CONFIGURED':'NOT CONFIGURED',detail:gemini?'API key có cấu hình; AI Center không tự tiêu quota để probe grounding.':'Thiếu cấu hình Gemini.',kind:gemini?'unknown':'issue'},
-    {name:'XiaoZhi Voice',status:xiaozhi?'READY':'DEGRADED',detail:xiaozhi?'Gateway voice sẵn sàng; browser fallback được giữ.':'Voice gateway chưa báo ready.',kind:xiaozhi?'healthy':'issue'},
+    xiaozhiRow,
     {name:'Drive Knowledge',status:drive?'READY':'NOT CONFIGURED',detail:drive?'Drive Runtime đã được cấu hình.':'Tài liệu nội bộ chưa có Drive Runtime; external-default vẫn hoạt động.',kind:drive?'healthy':'issue'},
     {name:'Google Workspace',status:workspace?'READY':'NOT CONFIGURED',detail:workspace?'Workspace actions đã cấu hình.':'Gmail/Calendar chưa có runtime action provider.',kind:workspace?'healthy':'issue'},
     {name:'Knowledge Index',status:drive?'DIRECT RETRIEVAL':'UNAVAILABLE',detail:'Hiện chỉ xác nhận direct retrieval + relevance ranking; durable semantic index/delta sync chưa có telemetry.',kind:'unknown'},
@@ -121,20 +132,20 @@ function healthRows(cache,showAll=false){
   ];
   return showAll?rows:rows.filter(row=>row.kind==='issue'||row.kind==='unknown');
 }
-async function renderAi({refresh=false}={}){
+async function renderAi({refresh=false,voice=false}={}){
   const body=document.getElementById('ops36Body');if(!body)return;
-  if(refresh||!healthCache){body.innerHTML='<div class="ops36Empty">Đang đọc trạng thái runtime…</div>';await fetchHealth()}
+  if(refresh||!healthCache){body.innerHTML='<div class="ops36Empty">Đang đọc trạng thái runtime…</div>';await fetchHealth({voice})}
   const checked=healthCache?.checkedAt?date(healthCache.checkedAt):'—';
-  body.innerHTML=`<div class="ops36Toolbar"><button class="ops36Btn" id="ops36Refresh">↻ Làm mới health</button><button class="ops36Btn" id="ops36Config">Cài đặt kết nối</button><label class="ops36Meta"><input type="checkbox" id="ops36All"> Hiện cả trạng thái tốt</label><span class="ops36Meta">Kiểm tra: ${esc(checked)}</span></div><div class="ops36Grid" id="ops36HealthList"></div>`;
+  body.innerHTML=`<div class="ops36Toolbar"><button class="ops36Btn" id="ops36Refresh">↻ Làm mới health</button><button class="ops36Btn" id="ops36VoiceProbe">Kiểm tra XiaoZhi</button><button class="ops36Btn" id="ops36Config">Cài đặt kết nối</button><label class="ops36Meta"><input type="checkbox" id="ops36All"> Hiện cả trạng thái tốt</label><span class="ops36Meta">Kiểm tra: ${esc(checked)}</span></div><div class="ops36Grid" id="ops36HealthList"></div>`;
   const repaint=()=>{const all=Boolean(document.getElementById('ops36All')?.checked),list=document.getElementById('ops36HealthList');if(list)list.innerHTML=healthRows(healthCache,all).map(row=>statusRow(row.name,row.status,row.detail,row.kind)).join('')};
-  body.querySelector('#ops36Refresh').onclick=()=>void renderAi({refresh:true});body.querySelector('#ops36Config').onclick=()=>window.AIOfficeCredentialsV22?.open?.();body.querySelector('#ops36All').onchange=repaint;repaint();
+  body.querySelector('#ops36Refresh').onclick=()=>void renderAi({refresh:true,voice:false});body.querySelector('#ops36VoiceProbe').onclick=()=>void renderAi({refresh:true,voice:true});body.querySelector('#ops36Config').onclick=()=>window.AIOfficeCredentialsV22?.open?.();body.querySelector('#ops36All').onchange=repaint;repaint();
 }
 function syncTabs(){document.querySelectorAll('[data-ops36-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.ops36Tab===activeTab))}
 function startTaskRefresh(){stopTaskRefresh();taskTimer=setInterval(()=>{if(document.getElementById('ops36')?.classList.contains('show')&&activeTab==='tasks')renderTasks()},2500)}
 function stopTaskRefresh(){if(taskTimer){clearInterval(taskTimer);taskTimer=null}}
 export function openCenter(tab='tasks'){
   injectUi();activeTab=tab==='ai'?'ai':'tasks';document.getElementById('ops36')?.classList.add('show');syncTabs();
-  if(activeTab==='tasks'){renderTasks();startTaskRefresh()}else{stopTaskRefresh();void renderAi({refresh:!healthCache})}
+  if(activeTab==='tasks'){renderTasks();startTaskRefresh()}else{stopTaskRefresh();void renderAi({refresh:!healthCache,voice:false})}
 }
 export function closeCenter(){document.getElementById('ops36')?.classList.remove('show');stopTaskRefresh()}
 function installNavigation(){
@@ -148,6 +159,6 @@ export function installOperationsCenter(){
   if(typeof window==='undefined')return false;
   if(window.AIOfficeOperationsV36?.version===VERSION)return true;
   injectUi();installNavigation();document.getElementById('ops36Body')?.addEventListener('click',taskAction);
-  window.AIOfficeOperationsV36={version:VERSION,open:openCenter,close:closeCenter,taskState:canonicalTaskState,refreshHealth:fetchHealth};
+  window.AIOfficeOperationsV36={version:VERSION,open:openCenter,close:closeCenter,taskState:canonicalTaskState,refreshHealth:()=>fetchHealth({voice:false}),checkVoice:()=>fetchHealth({voice:true})};
   window.dispatchEvent(new CustomEvent('ai-office-operations-ready',{detail:{version:VERSION}}));return true;
 }
