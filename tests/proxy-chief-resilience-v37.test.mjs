@@ -14,6 +14,8 @@ assert.match(source,/providerHealth: 'degraded-timeout'/,'timeout must report de
 assert.match(source,/return res\.status\(200\)\.json\(await chief\(req\.body\)\)/,'chief timeout fallback must remain a successful operation response');
 assert.doesNotMatch(source,/signal: AbortSignal\.timeout\(30000\)/,'legacy 30s chief timeout must be removed');
 assert.doesNotMatch(source,/chief_provider_timeout[\s\S]{0,200}message\s*[:=]/,'timeout audit must not log user prompt/message');
+assert.doesNotMatch(source,/generationConfig:\s*\{[^}]*temperature\s*:/s,'Gemini 3.8 chief must not send deprecated temperature sampling parameter');
+assert.match(source,/thinkingConfig:\s*\{\s*thinkingLevel:\s*'low'\s*\}/,'fast chief questions must use supported Gemini 3.8 low thinking level');
 
 assert.match(gateway,/import proxy from '\.\/proxy\.js'/,'secure proxy gateway must use runtime-safe canonical proxy import');
 assert.doesNotMatch(gateway,/from ['"]\.\/proxy(?:\.ts)?['"]/,'gateway must never emit extensionless or .ts runtime import');
@@ -35,4 +37,4 @@ const route=(vercel.routes||[]).find(row=>row?.src==='/api/proxy');
 const destination=String(rewrite?.destination||route?.dest||'').replace(/\.ts(?=\?|$)/,'');
 assert.equal(destination,'/api/proxy-gateway','production /api/proxy must route through the secure runtime gateway');
 
-console.log('proxy-chief-resilience-v56: bounded timeout + runtime-safe same-origin proxy gateway PASS');
+console.log('proxy-chief-resilience-v56: Gemini 3.8 config + bounded timeout + runtime-safe gateway PASS');
