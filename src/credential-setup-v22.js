@@ -3,7 +3,7 @@ const VERCEL_ENV_URL='https://vercel.com/hiu-yhct/ai-van-phong-tro-ly/settings/e
 const APPS_SCRIPT_NEW_URL='https://script.google.com/home/projects/create';
 const GOOGLE_SERVICE_ACCOUNTS_URL='https://console.cloud.google.com/iam-admin/serviceaccounts';
 const DRIVE_ROOT_URL='https://drive.google.com/drive/folders/1q8fnN4-WYFlbGXUkRAWj8uqudNBW4qG0';
-const BRIDGE_RAW_URL='https://raw.githubusercontent.com/drngovothiennhan/A.I-V-n-Ph-ng-Tr-L-/main/integrations/google-apps-script/DriveBrainBridge.gs';
+const BRIDGE_RAW_URL='/api/asset?path=integrations%2Fgoogle-apps-script%2FDriveBrainBridge.gs';
 const XIAOZHI_SERVER_URL='https://github.com/xinnan-tech/xiaozhi-esp32-server';
 const HEALTH_URL='/api/health';
 const DRIVE_TOKEN_SESSION_KEY='ai-office-drive-token-v230';
