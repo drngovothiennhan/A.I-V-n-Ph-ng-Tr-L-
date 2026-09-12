@@ -19,6 +19,7 @@ const IMAGE_TERMS = /\b(png|jpg|jpeg|webp|poster|infographic|hinh anh|tao anh|th
 const RESEARCH_TERMS = /\b(tra cuu|nghien cuu|tim nguon|kiem chung|doi chieu nguon|nguon chinh thuc|moi nhat|cap nhat moi)\b/;
 const HIGH_RISK = /\b(xoa|delete|gui email|gui thu|gui cong van|dang len|cong bo|ky so|ky van ban|phe duyet|thanh toan|nop ho so|phat hanh|deploy production|dua len production|huy lich|xoa file|xoa du lieu)\b/;
 const MEDIUM_RISK = /\b(sua|cap nhat|ket noi|cau hinh|deploy|upload|tai len|tao file|xuat file|dat lich|tao lich|di chuyen|doi ten)\b/;
+const META_QUESTION_HINTS = /\b(phan loai cau|cau sau|cau nay|day la cau hoi hay nhiem vu|cau hoi hay nhiem vu|giai thich vi sao cau|phan tich cau|nhan xet cau|y nghia cua cau|menh lenh tren|lenh tren|doan lenh)\b/;
 
 export function normalizeV22(text='') {
   return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ').trim();
@@ -33,6 +34,25 @@ function countMatches(text, re) {
 function controlIntent(n) {
   for (const [type, rule] of CONTROL_RULES) if (rule.test(n)) return type;
   return '';
+}
+
+function stripQuotedInstructions(raw='') {
+  return String(raw)
+    .replace(/"[^"\n]{1,1200}"/g,' ')
+    .replace(/'[^'\n]{1,1200}'/g,' ')
+    .replace(/“[^”\n]{1,1200}”/g,' ')
+    .replace(/‘[^’\n]{1,1200}’/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function metaQuestion(raw='') {
+  if (!/["'“”‘’]/.test(raw)) return false;
+  const outer = normalizeV22(stripQuotedInstructions(raw));
+  if (!outer) return false;
+  if (META_QUESTION_HINTS.test(outer)) return true;
+  if (outer.endsWith('?') && (QUESTION_START.test(outer) || QUESTION_BODY.test(outer) || INFORMATION_VERBS.test(outer))) return true;
+  return false;
 }
 
 function inferTaskKind(n) {
@@ -86,6 +106,10 @@ export function classifyInteractionV22(text='', context={}) {
 
   if (/^(xin chao|chao|hello|hi|alo|cam on|thank you|thanks)(\b|$)/.test(n)) {
     return {mode:'casual',confidence:0.98,risk:'none',taskKind:'general'};
+  }
+
+  if (metaQuestion(raw)) {
+    return {mode:'question',confidence:0.99,risk:'none',taskKind:'general',meta:true,scores:{question:8,task:0}};
   }
 
   let questionScore = 0;
