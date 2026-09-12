@@ -55,13 +55,14 @@ export default async function handler(req, res) {
       html = html.includes('</head>') ? html.replace('</head>', `${preloads}</head>`) : `${preloads}${html}`;
     }
 
-    const inputGate = '<script type="module" src="/src/canonical-input-gate-v71.js?v=711"></script>';
-    const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>';
-    const leanUi = '<script type="module" src="/src/office-v2/lean-dashboard-v72.js?v=3100"></script>';
-    const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
-    const releaseSync = '<script type="module" src="/src/release-v193.js?v=193"></script>';
-    const runtimeScripts = `${inputGate}${earlyUi}${leanUi}${bootstrap}${releaseSync}`;
-    html = html.includes('</body>') ? html.replace('</body>', `${runtimeScripts}</body>`) : `${html}${runtimeScripts}`;
+    const bootChain = `<script type="module">
+await import('/src/canonical-input-gate-v71.js?v=711');
+await import('/src/office-v2/ui-v2-shell.js?v=3002');
+await import('/src/office-v2/lean-dashboard-v72.js?v=3100');
+await import('/src/bootstrap-v18.js?v=193');
+await import('/src/release-v193.js?v=193');
+</script>`;
+    html = html.includes('</body>') ? html.replace('</body>', `${bootChain}</body>`) : `${html}${bootChain}`;
     return res.status(200).send(html);
   } catch (error) {
     console.error('app_shell_error', { message: String(error?.message || error).slice(0, 220) });
