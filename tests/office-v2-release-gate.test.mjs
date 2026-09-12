@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const release=fs.readFileSync(new URL('../.github/workflows/release-phase53-scoped-production.yml',import.meta.url),'utf8');
+const legacyQa=fs.readFileSync(new URL('../.github/workflows/quality-v20.yml',import.meta.url),'utf8');
 
 test('Office V2 production release remains candidate-first with exact-source gates and rollback',()=>{
   assert.match(release,/src\/office-v2\/\*\*/);
@@ -32,6 +33,14 @@ test('protected candidate smoke uses deployment-scoped share bypass and revokes 
   assert.ok(revokeIndex>0&&promoteIndex>revokeIndex,'deployment share bypass must be revoked before promotion');
   assert.doesNotMatch(release,/vercel curl/,'protected smoke must not depend on Vercel CLI user lookup');
   assert.doesNotMatch(release,/\/v1\/projects\/\$VERCEL_PROJECT_ID\/protection-bypass/,'release must not mutate project-wide automation bypass');
+});
+
+test('Phase 66 keeps exactly one active production release pipeline',()=>{
+  assert.match(legacyQa,/deploy-production:[\s\S]*?if: \$\{\{ false \}\}/,'legacy deploy job must remain permanently inert');
+  assert.match(legacyQa,/retired legacy deploy path; canonical production release is release-phase53-scoped-production\.yml/);
+  assert.match(release,/name: Office V2 Scoped Production Release/);
+  assert.match(release,/branches: \[main\]/);
+  assert.match(release,/Promote verified candidate by scoped REST API/);
 });
 
 test('Office V2 release retains legacy production regression gates and function budget',()=>{
