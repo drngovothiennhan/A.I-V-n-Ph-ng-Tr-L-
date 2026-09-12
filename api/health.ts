@@ -79,7 +79,11 @@ export default async function handler(req, res) {
       model: geminiModel(),
       economyModel: economyModel(),
       routing: ['zero-model-public-fast-path', 'economy', 'reasoning'],
-      googleSearchGrounding: geminiConfigured
+      googleSearchGrounding: null,
+      googleSearchGroundingConfigured: geminiConfigured,
+      googleSearchGroundingVerified: null,
+      googleSearchGroundingStatus: geminiConfigured ? 'configured-unverified' : 'not-configured',
+      groundingVerificationMode: 'explicit-manual-probe'
     },
     imageGeneration: {
       configured: geminiConfigured,
