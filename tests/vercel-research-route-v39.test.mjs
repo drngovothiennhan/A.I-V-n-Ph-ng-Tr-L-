@@ -9,9 +9,19 @@ const v29=await readFile(new URL('../api/research-v29.js',import.meta.url),'utf8
 const v30=await readFile(new URL('../api/research-v30.js',import.meta.url),'utf8');
 const v31=await readFile(new URL('../api/research-v31.js',import.meta.url),'utf8');
 
-const researchRewrite=(vercel.rewrites||[]).find(row=>row?.source==='/api/research');
-assert.equal(researchRewrite?.destination,'/api/research-gateway','/api/research must route through the secure gateway');
-assert.doesNotMatch(String(researchRewrite?.destination||''),/research-v2[89]/,'secure /api/research route must never pin a legacy v28/v29 implementation');
+function publicDestination(source){
+  const rewrite=(vercel.rewrites||[]).find(row=>row?.source===source);
+  if(rewrite?.destination) return rewrite.destination;
+  const route=(vercel.routes||[]).find(row=>row?.src===source);
+  return route?.dest;
+}
+function canonicalDestination(value=''){
+  return String(value).replace(/\.ts(?=\?|$)/,'');
+}
+
+const researchDestination=publicDestination('/api/research');
+assert.equal(canonicalDestination(researchDestination),'/api/research-gateway','/api/research must route through the secure gateway');
+assert.doesNotMatch(String(researchDestination||''),/research-v2[89]/,'secure /api/research route must never pin a legacy v28/v29 implementation');
 assert.match(researchGateway,/import research from '\.\/research'/,'secure research gateway must delegate to the stable research entrypoint');
 assert.doesNotMatch(researchGateway,/from ['"]\.\/research\.ts['"]/,'gateway import must remain TypeScript-build compatible');
 assert.match(researchGateway,/function sameOriginRuntimeRequest\(req\)/,'research gateway must enforce same-origin request metadata');
@@ -22,8 +32,8 @@ assert.match(researchEntry,/export default v31/,'stable /api/research entrypoint
 
 const retiredVersions=['v28','v29','v30','v31'];
 for(const version of retiredVersions){
-  const row=(vercel.rewrites||[]).find(item=>item?.source===`/api/research-${version}`);
-  assert.equal(row?.destination,'/api/research-legacy-retired',`public /api/research-${version} must fail closed through retired route`);
+  const destination=publicDestination(`/api/research-${version}`);
+  assert.equal(canonicalDestination(destination),'/api/research-legacy-retired',`public /api/research-${version} must fail closed through retired route`);
 }
 
 assert.match(v31,/import v30 from '\.\/research-v30\.js'/,'v31 must keep internal v30 delegation');
