@@ -64,7 +64,12 @@ export default async function handler(req, res) {
   const driveServiceAccountConfigured = Boolean(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const driveRuntimeConfigured = driveBridgeConfigured || driveServiceAccountConfigured;
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
-  const voiceRender = await probeVoiceRender();
+  const voiceProbeRequested = String(req.query?.probe || '').toLowerCase() === 'voice';
+  const voiceRender = voiceProbeRequested ? await probeVoiceRender() : null;
+  const xiaozhiTokenConfigured = Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN);
+  const xiaozhiRuntimeReady = voiceProbeRequested ? Boolean(voiceRender?.ok) : null;
+  const xiaozhiRuntimeStatus = voiceProbeRequested ? (voiceRender?.ok ? 'ready' : 'degraded') : 'not-probed';
+  const xiaozhiAuthenticated = xiaozhiTokenConfigured ? true : (voiceProbeRequested ? Boolean(voiceRender?.trustedOriginMode) : null);
   const driveProviders = [
     ...(driveBridgeConfigured ? ['apps-script-bridge'] : []),
     ...(driveServiceAccountConfigured ? ['service-account-readonly'] : [])
@@ -95,15 +100,18 @@ export default async function handler(req, res) {
     },
     xiaozhi: {
       configured: true,
-      runtimeReady: Boolean(voiceRender.ok),
-      authenticated: Boolean(process.env.XIAOZHI_WS_TOKEN || process.env.XIAOZHI_TOKEN || voiceRender.trustedOriginMode),
+      runtimeReady: xiaozhiRuntimeReady,
+      runtimeStatus: xiaozhiRuntimeStatus,
+      authenticated: xiaozhiAuthenticated,
+      authStatus: xiaozhiTokenConfigured ? 'token-configured' : (voiceProbeRequested ? (voiceRender?.trustedOriginMode ? 'trusted-origin' : 'unverified') : 'not-probed'),
       mode: 'render-direct-wss',
       source: process.env.XIAOZHI_WS_URL ? 'runtime-override' : 'render-direct-default',
       endpoint: VOICE_RENDER_WS,
-      protocolVersion: voiceRender.protocolVersion || process.env.XIAOZHI_PROTOCOL_VERSION || '1',
+      protocolVersion: voiceRender?.protocolVersion || process.env.XIAOZHI_PROTOCOL_VERSION || '1',
       voiceRenderVersion: '2.3',
-      gatewayRelease: voiceRender.release,
-      trustedOriginMode: Boolean(voiceRender.trustedOriginMode),
+      gatewayRelease: voiceRender?.release || null,
+      trustedOriginMode: voiceProbeRequested ? Boolean(voiceRender?.trustedOriginMode) : null,
+      probeMode: voiceProbeRequested ? 'explicit-live-probe' : 'passive-config',
       browserFallback: true
     },
     googleDriveRuntime: {
@@ -128,6 +136,7 @@ export default async function handler(req, res) {
   res.setHeader('x-ai-office-source-commit', sourceCommit());
   return res.status(200).json({
     status: 'ok',
+    healthMode: voiceProbeRequested ? 'voice-live-probe' : 'passive-config',
     release: '1.9.3-autonomous-office-orchestrator',
     knowledgeRouter: '2.0-unified-source-policy',
     interaction: '2.2-voice-action-orchestrator',
@@ -199,8 +208,10 @@ export default async function handler(req, res) {
     voice: {
       xiaozhiFabric: true,
       voiceRenderVersion: '2.3',
-      renderGatewayReady: Boolean(voiceRender.ok),
-      renderGatewayRelease: voiceRender.release,
+      renderGatewayReady: xiaozhiRuntimeReady,
+      renderGatewayStatus: xiaozhiRuntimeStatus,
+      renderGatewayRelease: voiceRender?.release || null,
+      liveProbeMode: 'explicit',
       renderDirectWss: true,
       sameChiefRouterAsText: true,
       continuousConversation: true,
@@ -223,10 +234,21 @@ export default async function handler(req, res) {
           { mode: 'service-account-readonly', requiredRuntime: ['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'], manualPermission: 'Share A.I Văn phòng root folder with the service-account client_email as Viewer' }
         ]
       },
-      xiaozhi: { ready: providers.xiaozhi.runtimeReady, requiredRuntime: [], optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID'] }
+      xiaozhi: {
+        ready: providers.xiaozhi.configured,
+        runtimeReady: providers.xiaozhi.runtimeReady,
+        runtimeStatus: providers.xiaozhi.runtimeStatus,
+        requiredRuntime: [],
+        optionalIdentity: ['XIAOZHI_CLIENT_ID', 'XIAOZHI_DEVICE_ID']
+      }
     },
     providers,
-    voiceRenderProbe: voiceRender,
+    voiceRenderProbe: voiceProbeRequested ? voiceRender : {
+      status: 'not-probed',
+      reason: 'EXPLICIT_VOICE_PROBE_REQUIRED',
+      endpoint: VOICE_RENDER_HEALTH,
+      websocketUrl: VOICE_RENDER_WS
+    },
     timestamp: new Date().toISOString()
   });
 }
