@@ -222,8 +222,8 @@ jobs:
           fi
           grep -q "2.6.3-client-research-safety-guard" /tmp/candidate-safety.js
 
-          vercel curl /api/selftest --deployment "$URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/candidate-selftest.json
-          node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('candidate artifact selftest ok:',t.engine)"
+          vercel curl /api/selftest --deployment "$URL" --token="$VERCEL_TOKEN" -- --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/candidate-selftest.json
+          node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1); console.log('candidate artifact selftest ok:',t.engine,t.sourceCommit)"
           echo "Candidate verified before traffic: health=$SOURCE_COMMIT ui=$UI_SOURCE_REF asset=$ASSET_SOURCE_REF" >> "$GITHUB_STEP_SUMMARY"
       - name: Promote verified candidate
         id: promote
@@ -260,8 +260,8 @@ jobs:
           fi
           grep -q "2.6.3-client-research-safety-guard" /tmp/safety.js
 
-          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
-          node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24') process.exit(1); console.log('production artifact selftest ok:',t.engine)"
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" https://ai-van-phong-tro-ly.vercel.app/api/selftest > /tmp/selftest.json
+          node -e "const t=require('/tmp/selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1); console.log('production artifact selftest ok:',t.engine,t.sourceCommit)"
           echo "Production promotion verified: health=$SOURCE_COMMIT ui=$UI_SOURCE_REF asset=$ASSET_SOURCE_REF" >> "$GITHUB_STEP_SUMMARY"
       - name: Roll back failed promotion
         if: failure() && steps.promote.outcome == 'success' && steps.previous.outputs.id != ''
