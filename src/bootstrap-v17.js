@@ -3,6 +3,10 @@
 const bootstrap = await import('./bootstrap-v18.js');
 void bootstrap;
 
+// Office V2 runs observe-only first: it records structural parity and never consumes input.
+const officeV2Shadow = await import('./office-v2/shadow-interceptor.js?v=220');
+officeV2Shadow.installOfficeV2ShadowInterceptor?.();
+
 const sourceControl = await import('./internal-source-control-v27.js?v=270');
 sourceControl.installInternalSourceControl?.();
 
@@ -25,11 +29,13 @@ const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
 weather.patchVoice?.();
 window.AIOfficeV22?.attachAfterV21?.();
 voiceTurns.installVoiceTurnCoordinator?.();
+window.dispatchEvent(new CustomEvent('ai-office-v2-repatch-voice'));
 
 window.AIOfficeRelease='1.9.3';
 window.AIOfficeKnowledgeRouterVersion='2.7';
 window.AIOfficeMultiSourceVersion='2.7.0';
 window.AIOfficeInternalSourceControlVersion='2.7.0';
+window.AIOfficeOfficeV2ShadowVersion='2.2.0-observe-only';
 
 const status=document.getElementById('v19Status');
 if(status) status.textContent='Gemini-first · Nội bộ opt-in · Voice/Intent/Action ON';
