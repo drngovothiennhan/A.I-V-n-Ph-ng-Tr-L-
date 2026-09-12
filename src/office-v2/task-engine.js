@@ -16,9 +16,58 @@ export const TASK_TRANSITIONS=freezeContract({
   [S.CANCELLED]:[S.PLANNING]
 });
 
+export const TASK_STORAGE_VERSION=1;
+export const DEFAULT_TASK_STORAGE_KEY='ai-office-v2-tasks-v1';
+export const DEFAULT_TASK_STORAGE_LIMIT=80;
+const MAX_PERSISTED_HISTORY=120;
+const SENSITIVE_METADATA_KEY=/(?:token|secret|password|authorization|credential|api[_-]?key)/i;
+
 function now(){return new Date().toISOString()}
 function id(){return globalThis.crypto?.randomUUID?.()||`task-${Date.now()}-${Math.random().toString(36).slice(2,8)}`}
-function copy(task){return JSON.parse(JSON.stringify(task))}
+function copy(value){return JSON.parse(JSON.stringify(value))}
+function safeStorage(storage){
+  if(storage)return storage;
+  try{return typeof localStorage!=='undefined'?localStorage:null}catch{return null}
+}
+function sanitizeValue(value,seen=new WeakSet()){
+  if(value===null||['string','number','boolean'].includes(typeof value))return value;
+  if(value===undefined||typeof value==='function'||typeof value==='symbol')return undefined;
+  if(typeof value!=='object')return String(value);
+  if(seen.has(value))return undefined;
+  seen.add(value);
+  if(Array.isArray(value))return value.map(item=>sanitizeValue(item,seen)).filter(item=>item!==undefined);
+  const safe={};
+  for(const [key,item] of Object.entries(value)){
+    if(SENSITIVE_METADATA_KEY.test(String(key)))continue;
+    const cleaned=sanitizeValue(item,seen);
+    if(cleaned!==undefined)safe[key]=cleaned;
+  }
+  return safe;
+}
+function sanitizeMetadata(metadata={}){
+  if(!metadata||typeof metadata!=='object'||Array.isArray(metadata))return{};
+  return sanitizeValue(metadata)||{};
+}
+function taskForPersistence(task){
+  const next=copy({...task,metadata:{}});
+  next.metadata=sanitizeMetadata(task?.metadata);
+  if(Array.isArray(next.history)&&next.history.length>MAX_PERSISTED_HISTORY)next.history=next.history.slice(-MAX_PERSISTED_HISTORY);
+  return next;
+}
+function readPersistedRows(storage,key){
+  if(!storage)return[];
+  try{
+    const raw=storage.getItem(key);
+    if(!raw)return[];
+    const payload=JSON.parse(raw);
+    if(Array.isArray(payload))return payload;
+    if(!payload||payload.version!==TASK_STORAGE_VERSION||!Array.isArray(payload.rows))return[];
+    return payload.rows;
+  }catch{return[]}
+}
+function writePersistedRows(storage,key,rows){
+  storage.setItem(key,JSON.stringify({version:TASK_STORAGE_VERSION,updatedAt:now(),rows}));
+}
 
 export function createTask({requestId,title,instruction,plan,metadata={}}={}){
   const text=String(instruction||'').trim();
@@ -61,9 +110,60 @@ export class MemoryTaskRepository{
   async list(){return [...this.#rows.values()].map(copy)}
 }
 
+export class BrowserTaskRepository{
+  constructor({storage,key=DEFAULT_TASK_STORAGE_KEY,limit=DEFAULT_TASK_STORAGE_LIMIT}={}){
+    this.storage=safeStorage(storage);
+    this.key=String(key||DEFAULT_TASK_STORAGE_KEY);
+    this.limit=Math.max(10,Math.min(500,Number(limit)||DEFAULT_TASK_STORAGE_LIMIT));
+    this.fallback=new MemoryTaskRepository();
+    this.storageFailed=false;
+  }
+  async #activateFallback(rows=[]){
+    this.storageFailed=true;
+    this.fallback=new MemoryTaskRepository();
+    for(const row of rows)if(row?.id)await this.fallback.save(row);
+    return this.fallback;
+  }
+  async save(task){
+    if(!task?.id)throw new TypeError('task_id_required');
+    const persisted=taskForPersistence(task);
+    if(!this.storage||this.storageFailed)return this.fallback.save(persisted);
+    const rows=readPersistedRows(this.storage,this.key);
+    const current=rows.find(row=>row?.id===persisted.id);
+    if(current&&Number(persisted.revision||0)<Number(current.revision||0))throw new Error('task_revision_conflict');
+    const next=[persisted,...rows.filter(row=>row?.id!==persisted.id)]
+      .sort((a,b)=>String(b?.updatedAt||'').localeCompare(String(a?.updatedAt||'')))
+      .slice(0,this.limit);
+    try{writePersistedRows(this.storage,this.key,next)}catch{
+      const fallback=await this.#activateFallback(next);
+      return fallback.get(persisted.id);
+    }
+    return copy(persisted);
+  }
+  async get(idValue){
+    if(!this.storage||this.storageFailed)return this.fallback.get(idValue);
+    const row=readPersistedRows(this.storage,this.key).find(item=>item?.id===idValue);
+    return row?copy(row):null;
+  }
+  async list(){
+    if(!this.storage||this.storageFailed)return this.fallback.list();
+    return readPersistedRows(this.storage,this.key).map(copy);
+  }
+  async clear(){
+    this.fallback=new MemoryTaskRepository();
+    if(!this.storage||this.storageFailed){this.storageFailed=false;return true}
+    try{this.storage.removeItem(this.key);return true}catch{this.storageFailed=true;return false}
+  }
+}
+
+export function createPersistentTaskRepository(options={}){return new BrowserTaskRepository(options)}
+export function createPersistentTaskEngine(options={}){return new TaskEngine(createPersistentTaskRepository(options))}
+
 export class TaskEngine{
   constructor(repository=new MemoryTaskRepository()){this.repository=repository}
   async create(input){const task=createTask(input);return this.repository.save(task)}
+  async get(taskId){return this.repository.get(taskId)}
+  async list(){return this.repository.list()}
   async move(taskId,to,options={}){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(transitionTask(task,to,options))}
   async cancel(taskId,reason){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(cancelTask(task,reason))}
   async pause(taskId){const task=await this.repository.get(taskId);if(!task)throw new Error('task_not_found');return this.repository.save(pauseTask(task))}
