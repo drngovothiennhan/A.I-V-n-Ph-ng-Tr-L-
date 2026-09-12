@@ -60,7 +60,10 @@ async function chief(body) {
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: message }] }],
-        generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
+        generationConfig: {
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingLevel: 'low' }
+        }
       }),
       signal: AbortSignal.timeout(CHIEF_TIMEOUT_MS)
     });
