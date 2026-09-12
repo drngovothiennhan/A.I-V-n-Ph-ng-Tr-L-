@@ -1,4 +1,4 @@
-const VERSION='2.3.0-credentials-runtime-verifier';
+const VERSION='2.3.1-manual-provider-diagnostics';
 const VERCEL_ENV_URL='https://vercel.com/hiu-yhct/ai-van-phong-tro-ly/settings/environment-variables';
 const APPS_SCRIPT_NEW_URL='https://script.google.com/home/projects/create';
 const GOOGLE_SERVICE_ACCOUNTS_URL='https://console.cloud.google.com/iam-admin/serviceaccounts';
@@ -76,7 +76,7 @@ function injectUi(){
   injectStyle();
   if(!document.getElementById('cred22')){
     const modal=document.createElement('div');modal.id='cred22';modal.innerHTML=`<div class="panel" role="dialog" aria-modal="true" aria-labelledby="cred22Title">
-      <div class="top"><div><h3 id="cred22Title">Runtime A.I Văn phòng · xác minh thật</h3><p id="cred22Summary">Đang kiểm tra Gemini Grounding và Drive Approved…</p></div><button class="close" id="cred22Close" aria-label="Đóng">×</button></div>
+      <div class="top"><div><h3 id="cred22Title">Runtime A.I Văn phòng · xác minh thật</h3><p id="cred22Summary">Đang đọc trạng thái runtime; kiểm tra Grounding/Canary chỉ chạy khi bạn yêu cầu.</p></div><button class="close" id="cred22Close" aria-label="Đóng">×</button></div>
       <div class="warn"><b>Quy tắc bảo mật:</b> không đưa API key, JSON service account hoặc token vào GitHub/frontend/chat. Drive chỉ chuyển xanh khi runtime đọc đúng canary <b>${DRIVE_CANARY}</b> trong <b>02_APPROVED</b>. Chỉ cần chọn <b>một</b> trong hai phương án Drive bên dưới.</div>
       <div class="rows" id="cred22Rows"></div>
       <div class="cred22grid">
@@ -97,7 +97,7 @@ function injectUi(){
     document.body.appendChild(modal);
     modal.addEventListener('click',e=>{if(e.target===modal)closePopup()});
     modal.querySelector('#cred22Close').onclick=closePopup;
-    modal.querySelector('#cred22Check').onclick=refreshPopup;
+    modal.querySelector('#cred22Check').onclick=()=>refreshPopup({deep:true});
     modal.querySelector('#cred22CopyBridge').onclick=e=>copyBridge(e.currentTarget);
     modal.querySelector('#cred22CopyDriveToken').onclick=e=>copyText(getDriveToken(),e.currentTarget);
     modal.querySelector('#cred22RotateDriveToken').onclick=()=>{sessionStorage.setItem(DRIVE_TOKEN_SESSION_KEY,secureToken());renderDriveToken()};
@@ -106,36 +106,47 @@ function injectUi(){
 }
 function renderDriveToken(){const el=document.getElementById('driveToken');if(el)el.textContent=getDriveToken()}
 function closePopup(){document.getElementById('cred22')?.classList.remove('show')}
-async function refreshPopup(){
+async function refreshPopup({deep=false}={}){
   injectUi();renderDriveToken();
   const modal=document.getElementById('cred22');
   const h=await getHealth();const s=normalizeHealth(h);
-  const [grounding,canary]=await Promise.all([verifyGeminiGrounding(),s.drive?verifyDriveCanary():Promise.resolve({pass:false,configured:false,reason:'DRIVE_RUNTIME_NOT_CONFIGURED'})]);
-  const driveVerified=Boolean(s.drive&&canary?.pass);const groundingVerified=Boolean(s.gemini&&grounding?.pass);
+  let grounding={pass:false,reason:'MANUAL_CHECK_REQUIRED'};
+  let canary={pass:false,configured:s.drive,reason:s.drive?'MANUAL_CHECK_REQUIRED':'DRIVE_RUNTIME_NOT_CONFIGURED'};
+  if(deep){
+    [grounding,canary]=await Promise.all([
+      s.gemini?verifyGeminiGrounding():Promise.resolve({pass:false,configured:false,reason:'GEMINI_API_KEY_MISSING'}),
+      s.drive?verifyDriveCanary():Promise.resolve({pass:false,configured:false,reason:'DRIVE_RUNTIME_NOT_CONFIGURED'})
+    ]);
+  }
+  const groundingVerified=Boolean(deep&&s.gemini&&grounding?.pass);
+  const driveVerified=Boolean(deep&&s.drive&&canary?.pass);
+  const groundingState=!s.gemini?'miss':!deep?'opt':groundingVerified?'ok':'miss';
+  const canaryState=!s.drive?'miss':!deep?'opt':driveVerified?'ok':'miss';
   const providerText=s.driveProviders.length?s.driveProviders.join(' → '):(s.drive?'Drive runtime configured':'Chọn Service Account readonly hoặc Apps Script Bridge');
   modal.querySelector('#cred22Rows').innerHTML=[
     row('Gemini reasoning','GEMINI_API_KEY',s.gemini?'ok':'miss'),
-    row('Gemini Google Search Grounding',groundingVerified?`${grounding.groundingSourceCount||0} nguồn grounding`:grounding?.reason||'Chưa xác minh',groundingVerified?'ok':'miss'),
+    row('Gemini Google Search Grounding',groundingVerified?`${grounding.groundingSourceCount||0} nguồn grounding`:deep?(grounding?.reason||'Chưa xác minh'):'Chỉ kiểm tra khi bạn bấm nút',groundingState),
     row('Google Drive Brain runtime',providerText,s.drive?'ok':'miss'),
-    row('Drive Approved canary',`${DRIVE_CANARY} · ${canary?.provider||'02_APPROVED'}`,driveVerified?'ok':'miss'),
+    row('Drive Approved canary',driveVerified?`${DRIVE_CANARY} · ${canary?.provider||'02_APPROVED'}`:deep?(canary?.reason||'Chưa xác minh'):'Chỉ kiểm tra khi bạn bấm nút',canaryState),
     row('XiaoZhi voice gateway','Không chặn browser voice',s.xiaozhi?'opt':'opt'),
     row('Google Workspace actions','Tác vụ ghi là tùy chọn',s.workspace?'ok':'opt')
   ].join('');
   const blockers=[];
   if(!s.gemini)blockers.push('GEMINI_API_KEY');
-  else if(!groundingVerified)blockers.push(`GEMINI_GROUNDING: ${grounding?.reason||'chưa PASS'}`);
+  else if(deep&&!groundingVerified)blockers.push(`GEMINI_GROUNDING: ${grounding?.reason||'chưa PASS'}`);
   if(!s.drive)blockers.push('DRIVE_RUNTIME: chọn GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON hoặc DRIVE_BRAIN_BRIDGE_URL + DRIVE_BRAIN_TOKEN');
-  else if(!driveVerified)blockers.push(`DRIVE_CANARY: ${canary?.reason||'Approved canary not found'}`);
+  else if(deep&&!driveVerified)blockers.push(`DRIVE_CANARY: ${canary?.reason||'Approved canary not found'}`);
   if(!s.gemini)modal.querySelector('#cred22Summary').textContent='Gemini chưa được cấu hình.';
+  else if(!deep)modal.querySelector('#cred22Summary').textContent='Đã đọc trạng thái runtime từ /api/health. Không tự gọi Gemini Grounding hoặc Drive Canary để tránh tiêu quota; bấm “Kiểm tra Grounding + Canary” khi cần xác minh sâu.';
   else if(!groundingVerified)modal.querySelector('#cred22Summary').textContent='Gemini cơ bản có thể hoạt động nhưng Google Search Grounding chưa PASS; hệ thống phải fail-safe thay vì trả nguồn lạc đề.';
   else if(!s.drive)modal.querySelector('#cred22Summary').textContent='Gemini Grounding đã sẵn sàng. Drive chưa cấp runtime; hệ thống vẫn trả lời bằng nguồn ngoài và không phụ thuộc local.';
   else if(!driveVerified)modal.querySelector('#cred22Summary').textContent='Drive credential đã có nhưng Approved canary chưa PASS; không bật trạng thái Drive xanh.';
   else modal.querySelector('#cred22Summary').textContent='Gemini Grounding + Drive Brain + Approved canary đều PASS. Orchestrator chạy đa nguồn và local không phải dependency.';
-  modal.querySelector('#cred22Missing').textContent=blockers.length?blockers.join('\n'):'Không còn blocker bắt buộc.';
-  return{...s,groundingVerified,grounding,driveVerified,canary};
+  modal.querySelector('#cred22Missing').textContent=blockers.length?blockers.join('\n'):'Không còn blocker cấu hình bắt buộc. Grounding/Canary chỉ được xác minh khi bạn yêu cầu.';
+  return{...s,deepDiagnostics:deep,groundingVerified,grounding,driveVerified,canary};
 }
-export async function openPopup(){injectUi();const modal=document.getElementById('cred22');modal.classList.add('show');return refreshPopup()}
+export async function openPopup(){injectUi();const modal=document.getElementById('cred22');modal.classList.add('show');return refreshPopup({deep:false})}
 
 injectUi();
-window.AIOfficeCredentialsV22={version:VERSION,open:openPopup,refresh:refreshPopup,close:closePopup,getDriveToken,verifyDriveCanary,verifyGeminiGrounding};
+window.AIOfficeCredentialsV22={version:VERSION,open:openPopup,refresh:()=>refreshPopup({deep:false}),check:()=>refreshPopup({deep:true}),close:closePopup,getDriveToken,verifyDriveCanary,verifyGeminiGrounding};
 const params=new URLSearchParams(location.search);if(params.get('credentials')==='1'||!sessionStorage.getItem('ai-office-credentials-seen-v230')){sessionStorage.setItem('ai-office-credentials-seen-v230','1');setTimeout(()=>openPopup(),450)}
