@@ -38,6 +38,7 @@ jobs:
           node --check src/office-v2/chief-delegation.js
           node --check src/office-v2/task-runtime-bridge.js
           node --check src/office-v2/task-workspace.js
+          node --check src/office-v2/ui-v2-shell.js
           node --check src/office-v2/chief-of-staff.js
           node --check src/office-v2/legacy-bridge.js
           node --check src/office-v2/shadow-runtime.js
