@@ -2,7 +2,7 @@ name: Source Router + Interaction QA
 
 on:
   push:
-    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback, ai-office-phase33-canonical-quota-gate, ai-office-phase34-gemini-config-gate]
+    branches: [main, ai-office-phase12-global-cancel, ai-office-phase14-authorization, ai-office-phase15-context, ai-office-phase16-17-centers, ai-office-phase18-chief-timeout, ai-office-phase19-deploy-truth, ai-office-phase20-research-route, ai-office-phase21-economy-model, ai-office-phase22-provider-smoke, ai-office-phase24-xiaozhi-version, ai-office-phase26-source-commit, ai-office-phase27-immutable-assets, ai-office-phase28-full-release-smoke, ai-office-phase30-promote-gate, ai-office-phase32-post-promotion-rollback, ai-office-phase33-canonical-quota-gate, ai-office-phase34-gemini-config-gate, ai-office-phase35-vercel-cli-pin]
   workflow_dispatch:
 
 jobs:
@@ -77,6 +77,7 @@ jobs:
           node --check tests/credential-probe-quota-v47.test.mjs
           node --check tests/deployment-rollback-recovery-v48.test.mjs
           node --check tests/deployment-gemini-config-v49.test.mjs
+          node --check tests/deployment-vercel-cli-pin-v50.test.mjs
       - name: Source policy regression suite
         run: node tests/source-policy-v20.test.mjs
       - name: Multi-source orchestrator regression suite
@@ -123,6 +124,8 @@ jobs:
         run: node tests/deployment-rollback-recovery-v48.test.mjs
       - name: Gemini configuration release gate regression
         run: node tests/deployment-gemini-config-v49.test.mjs
+      - name: Vercel CLI pin regression
+        run: node tests/deployment-vercel-cli-pin-v50.test.mjs
       - name: Office business workflow regression
         run: node tests/business-workflow-v24.test.mjs
       - name: Drive Brain registry regression
@@ -180,7 +183,7 @@ jobs:
           echo "source_commit=$PREVIOUS_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
           echo "Captured serving production before release: $PREVIOUS_ID ($PREVIOUS_URL), source=${PREVIOUS_SOURCE_COMMIT:-unknown}" >> "$GITHUB_STEP_SUMMARY"
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install --global vercel@59.11.7
       - name: Pull production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Build production bundle
