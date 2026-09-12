@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     const preloads = [
       '<link rel="modulepreload" href="/src/canonical-input-gate-v71.js?v=711">',
       '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">',
-      '<link rel="modulepreload" href="/src/office-v2/lean-dashboard-v72.js?v=3100">'
+      '<link rel="modulepreload" href="/src/office-v2/lean-dashboard-v72.js?v=3110">'
     ].join('');
     if (!html.includes('/src/canonical-input-gate-v71.js?v=711')) {
       html = html.includes('</head>') ? html.replace('</head>', `${preloads}</head>`) : `${preloads}${html}`;
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
     const bootChain = `<script type="module">
 await import('/src/canonical-input-gate-v71.js?v=711');
 await import('/src/office-v2/ui-v2-shell.js?v=3002');
-await import('/src/office-v2/lean-dashboard-v72.js?v=3100');
+await import('/src/office-v2/lean-dashboard-v72.js?v=3110');
 await import('/src/bootstrap-v18.js?v=193');
 await import('/src/release-v193.js?v=193');
 </script>`;
