@@ -3,7 +3,7 @@
 Updated: 2026-09-12
 
 ## CURRENT_PHASE
-PHASE 21–30 COMPLETE — PROVIDER ROUTING / DEPLOY TRUTH / EXACT SOURCE STAMPING / IMMUTABLE RELEASE ASSETS / DRIVE BRIDGE PINNING / CANDIDATE PROMOTION GATE
+PHASE 21–32 COMPLETE — PROVIDER ROUTING / DEPLOY TRUTH / EXACT SOURCE STAMPING / IMMUTABLE RELEASE / QUOTA-SAFE DIAGNOSTICS / CANDIDATE PROMOTION / POST-PROMOTION ROLLBACK
 NEXT: production remains BLOCKED by missing `VERCEL_TOKEN`. Continue only with current-source issues proven by tests or fresh runtime evidence.
 
 ## CURRENT_OBJECTIVE
@@ -32,7 +32,9 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - PHASE 27 immutable release shell/assets: `api/app.ts` and `api/asset.ts` no longer load raw GitHub `main` in production. They resolve raw content from `AI_OFFICE_SOURCE_COMMIT` / `VERCEL_GIT_COMMIT_SHA`, validate a full 40-character hex SHA, and expose `x-ai-office-ui-source-ref` / `x-ai-office-asset-source-ref`.
 - PHASE 28 coherent production smoke: deployment verifies backend health SHA, UI shell source-ref and runtime asset source-ref against the validated `GITHUB_SHA`, in addition to provider/artifact/safety checks.
 - PHASE 29 Drive Bridge release pinning: Runtime Credentials popup no longer copies `DriveBrainBridge.gs` from raw GitHub `main`; it fetches the Bridge through the SHA-pinned `/api/asset` gateway. `api/asset.ts` allows exactly `integrations/google-apps-script/DriveBrainBridge.gs` outside `src/`/`public/`, serves `.gs` as plain text, and regression prevents raw-main drift.
-- PHASE 30 candidate promotion gate: production bundle is deployed with `--prod --skip-domain`, keeping production environment/secrets while withholding production traffic. The candidate is smoke-tested through `vercel curl` for health/provider model contract, exact source SHA, UI source-ref, runtime asset source-ref, safety asset and artifact selftest. Only a passing candidate can run `vercel promote`; production domain is then smoke-tested again. A failed candidate therefore cannot replace the currently serving production release.
+- PHASE 30 candidate promotion gate: production bundle is deployed with `--prod --skip-domain`, keeping production environment/secrets while withholding production traffic. Candidate is smoke-tested through `vercel curl` for provider contract, exact source SHA, UI source-ref, runtime asset source-ref, safety asset and artifact selftest. Only a passing candidate can run `vercel promote`; production domain is then smoke-tested again.
+- PHASE 31 quota-safe provider diagnostics: Runtime Credentials popup is health-only by default and no longer auto-calls Gemini Google Search Grounding or Drive Canary. Expensive checks run only after explicit `Kiểm tra Grounding + Canary`; unprobed states are `MANUAL_CHECK_REQUIRED` rather than fake failures. Public API separates cheap `refresh()` from explicit `check()`.
+- PHASE 32 post-promotion rollback recovery: workflow captures the exact currently serving production deployment before release. If promotion succeeds but any post-promotion production smoke fails, workflow requests rollback through Vercel `POST /v1/projects/{projectId}/rollback/{previousDeploymentId}`, polls production hostname until it resolves back to the captured deployment, and verifies the restored source commit when known. The workflow remains failed after recovery so rollback cannot masquerade as a successful release.
 
 ## VERIFIED CI
 - PHASE 19 branch #167 (`34655869441`): PASS full source suite.
@@ -53,12 +55,18 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - PHASE 28 main #186 (`34661804202`): source PASS; deploy BLOCKED at credential gate.
 - PHASE 29 targeted branch QA #1 (`34664054384`): PASS syntax, immutable Bridge regression and dependency security gate.
 - PHASE 29 main #187 (`34664088853`): full source-policy suite PASS; deploy BLOCKED at credential gate.
-- PHASE 30 branch #190 (`34664398053`): PASS full source suite including candidate promotion gate. Feature-branch deploy job correctly skipped.
-- PHASE 30 main #191 (`34664438077`): full source-policy suite PASS including candidate promotion gate, Drive, XiaoZhi, artifacts and dependency audit. `deploy-production` FAIL/BLOCKED at `Require deployment credential`; Install/Pull/Build/Candidate Deploy/Candidate Smoke/Promote/Post-Promotion Smoke were all skipped because `VERCEL_TOKEN` is absent.
+- PHASE 30 branch #190 (`34664398053`): PASS full source suite including candidate promotion gate.
+- PHASE 30 main #191 (`34664438077`): full source-policy suite PASS; deploy BLOCKED at credential gate.
+- PHASE 31 targeted quota branch (`34664680118`): PASS syntax + provider probe quota regression + dependency audit.
+- PHASE 31 main quota workflow (`34664721469`): PASS.
+- PHASE 31 canonical main #194 (`34664783558`): source-policy PASS all regressions + dependency audit; deploy BLOCKED at credential gate.
+- PHASE 32 branch #195 (`34664937770`): PASS full source suite including post-promotion rollback recovery regression.
+- PHASE 32 main quota workflow #4 (`34664964376`): PASS.
+- PHASE 32 canonical main #196 (`34664964386`): source-policy PASS all regressions including rollback recovery, Drive, XiaoZhi, artifact round-trip and dependency audit. `deploy-production` FAIL/BLOCKED at `Require deployment credential`; Capture/Build/Candidate Deploy/Candidate Smoke/Promote/Post-Smoke/Rollback were skipped because `VERCEL_TOKEN` is absent.
 - `npm audit --omit=dev --audit-level=high`: PASS in all current verified suites.
 
 ## SOURCE_STATE
-- Current feature baseline through PHASE 30 before this checkpoint documentation commit: `99e9143abc1df509e99719c4acba890a01119a1a`.
+- Current feature baseline through PHASE 32 before this checkpoint documentation commit: `200766a781cf5e762547ce4c617588801eaa1172`.
 - Key contracts/files include:
   - `src/ai-orchestrator-core-v32.js`
   - `src/context-manager-v35.js`
@@ -80,6 +88,7 @@ Continue additive, production-safe hardening from the canonical orchestrator and
   - `api/provider-check.ts`
   - `vercel.json`
   - `.github/workflows/quality-v20.yml`
+  - `.github/workflows/quality-credential-probe-v47.yml`
   - `tests/proxy-chief-resilience-v37.test.mjs`
   - `tests/deployment-truthfulness-v38.test.mjs`
   - `tests/vercel-research-route-v39.test.mjs`
@@ -90,20 +99,23 @@ Continue additive, production-safe hardening from the canonical orchestrator and
   - `tests/immutable-runtime-assets-v44.test.mjs`
   - `tests/deployment-release-coherence-v45.test.mjs`
   - `tests/deployment-promotion-gate-v46.test.mjs`
+  - `tests/credential-probe-quota-v47.test.mjs`
+  - `tests/deployment-rollback-recovery-v48.test.mjs`
 
 ## PRODUCTION_STATUS
 - Vercel project: `ai-van-phong-tro-ly` (`prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc`).
 - Team: `team_zMTBj85c4Dh5QoDNIjWqQRTg`.
 - Production domain: `https://ai-van-phong-tro-ly.vercel.app`.
-- Latest known serving production deployment before PHASE 30 remains the stale release previously identified.
-- Fresh live `/api/health` at 2026-09-12T01:13Z still reports `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
-- Production root from the stale deployment does not expose the new `x-ai-office-ui-source-ref`, confirming the live release predates PHASE 27–30.
-- Therefore current source through PHASE 30 is NOT production-verified.
-- Deployment is fail-closed. Without `VERCEL_TOKEN`, no candidate deployment or promotion can run.
+- Current production hostname resolves to deployment `dpl_DfW8oQE4WTrsQTJxLVWtVmfi3sca`, URL `ai-van-phong-tro-29zwbd4rt-hiu-yhct.vercel.app`, target production, READY.
+- Fresh live `/api/health` last verified in this continuation still reports `x-ai-office-source-commit: 825dbf8073284eadc38800245f42d4f70f647c98`.
+- Production root from the stale deployment does not expose the new `x-ai-office-ui-source-ref`, confirming the live release predates PHASE 27–32.
+- Therefore current source through PHASE 32 is NOT production-verified.
+- Deployment is fail-closed. Without `VERCEL_TOKEN`, no capture/candidate deployment/promotion/rollback production workflow can run.
 - Native Vercel Git auto-deploy linkage is not proven and must not be assumed.
 
 ## AI_PROVIDER_STATUS
 - Gemini: CONFIGURED / DEGRADED because the latest explicit Google Search Grounding probe observed HTTP 429. Public-source fallback remains available.
+- Runtime Credentials no longer spends Gemini Grounding quota on auto-open or ordinary refresh; Grounding is checked only by explicit deep diagnostics.
 - Gemini model contract: primary `gemini-3.8-flash`; economy `gemini-3.5-flash-lite`.
 - Public research fallback: CONFIGURED / AVAILABLE.
 - Local Safe Engine: CONFIGURED fallback.
@@ -114,11 +126,12 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 
 ## OPEN_ERRORS
 - Production remains stale at source `825dbf...` until a real verified deploy occurs.
-- Gemini grounding 429 keeps provider health DEGRADED rather than HEALTHY.
+- Gemini grounding 429 keeps provider health DEGRADED rather than HEALTHY; do not auto-probe it.
 - Drive and Google Workspace E2E remain credential-dependent.
 - `url.parse()` DEP0169 and `stripTypeScriptTypes` are measured warning-only signals; do not broadly refactor runtime merely to silence them.
 - Historical loader/bare-module errors belong to old production; re-evaluate only after current source reaches production.
 - XiaoZhi had one transient `VOICE_RENDER_UNREACHABLE` sample but recovered immediately and produced no matching Vercel error cluster.
+- Rollback recovery is source/test verified only; it has not run live because deployment credentials are absent.
 
 ## BLOCKERS
 - `VERCEL_TOKEN` absent from GitHub Actions secrets. This is the primary production blocker.
@@ -128,7 +141,7 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 
 ## NEXT_ACTION
 1. Configure `VERCEL_TOKEN`; this remains the highest-value external unblock.
-2. Once token exists, run the existing workflow: Vercel pull -> production build -> `deploy --prebuilt --prod --skip-domain --env AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA` -> candidate smoke -> `vercel promote` -> production smoke.
+2. Once token exists, run the existing workflow: capture current production -> Vercel pull -> production build -> `deploy --prebuilt --prod --skip-domain --env AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA` -> candidate smoke -> `vercel promote` -> production smoke -> automatic rollback to captured deployment if post-promotion smoke fails.
 3. Candidate and production smoke must verify exact current source SHA, UI shell ref, runtime asset ref, primary/economy Gemini models, artifact engine selftest and research-safety asset.
 4. Until deployment is unblocked, continue only with source-side issues proven by current code/tests or fresh runtime evidence.
 5. After current source reaches production, rerun runtime error clusters and compare Chief/research/provider/loader behavior against PHASE 18 baseline.
@@ -148,13 +161,15 @@ Continue additive, production-safe hardening from the canonical orchestrator and
 - XiaoZhi voice render v2.3, browser fallback, barge-in, continuous session and shared text/voice routing semantics.
 - Safe/reversible auto-execution and approval gate for irreversible actions.
 - Existing credential UI and server-side secret handling.
+- Runtime Credentials must remain health-only by default; expensive provider/canary probes require explicit user action.
 - Operations Center honest telemetry: no fake progress, quota, latency or health.
 - Chief timeout fallback stays fail-fast/honest; arbitrary non-timeout errors must not become fake success.
 - Deployment remains fail-closed: missing credential, candidate smoke failure, wrong provider config, failed selftest, missing safety asset, source-commit mismatch, UI-ref mismatch or asset-ref mismatch must never be reported as production success.
 - A candidate must not receive production domains/traffic before candidate smoke passes; only a verified candidate may be promoted.
+- If post-promotion production smoke fails after a successful promotion, rollback must target the exact production deployment captured before release and the job must remain failed even after recovery.
 - CLI/prebuilt deployment exact source verification must use explicit runtime stamping and must not silently rely on Git-trigger metadata.
 - Production runtime shell, JS assets and Drive Bridge setup code must stay pinned to the validated release SHA; do not fetch raw `main` for production behavior.
 
 ## DEPLOYMENT_STATUS
-SOURCE READY / SOURCE QA PASS through PHASE 30 at feature baseline `99e9143abc1df509e99719c4acba890a01119a1a` before this checkpoint commit.
+SOURCE READY / SOURCE QA PASS through PHASE 32 at feature baseline `200766a781cf5e762547ce4c617588801eaa1172` before this checkpoint commit.
 PRODUCTION BLOCKED / NOT UPDATED / NOT VERIFIED because `VERCEL_TOKEN` is missing. Last verified live source remains `825dbf8073284eadc38800245f42d4f70f647c98`.
