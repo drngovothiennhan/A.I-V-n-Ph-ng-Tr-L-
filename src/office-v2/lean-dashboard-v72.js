@@ -53,9 +53,11 @@ function compactKnowledge(){
 
 function compactApprovals(){
   const card=document.getElementById('approve')||findCard(/sản phẩm chờ duyệt/i);if(!card)return;
-  const rows=[...card.querySelectorAll('.approval')].filter(row=>!DONE_RE.test(text(row)));
+  const allRows=[...card.querySelectorAll('.approval')];
+  for(const row of allRows)row.hidden=DONE_RE.test(text(row));
+  const rows=visible(allRows);hideRest(rows,3);
   const heading=titleOf(card)||text(card.querySelector('.headbar'));
-  setCard(card,!/\(0\)/.test(heading)&&rows.length>0);
+  setCard(card,!/\(0\)/.test(heading)&&visible(allRows).length>0);
 }
 
 function compactReports(){
