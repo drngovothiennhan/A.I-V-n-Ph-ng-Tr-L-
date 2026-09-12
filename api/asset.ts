@@ -1,8 +1,12 @@
 const OWNER = 'drngovothiennhan';
 const REPO = 'A.I-V-n-Ph-ng-Tr-L-';
-const BRANCH = 'main';
 const ALLOWED_PREFIXES = ['src/', 'public/'];
 const RELEASE = '1.9.3';
+
+function sourceRef() {
+  const ref = String(process.env.AI_OFFICE_SOURCE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || '').trim();
+  return /^[0-9a-f]{40}$/i.test(ref) ? ref : 'main';
+}
 
 function contentType(path) {
   if (path.endsWith('.js') || path.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
@@ -24,7 +28,8 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   try {
     const path = normalize(req.query.path);
-    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
+    const ref = sourceRef();
+    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${ref}/${path}`;
     const upstream = await fetch(url, {
       headers: { 'user-agent': `AI-Office-Asset-Gateway/${RELEASE}` },
       signal: AbortSignal.timeout(8000)
@@ -34,6 +39,7 @@ export default async function handler(req, res) {
     res.setHeader('content-type', contentType(path));
     res.setHeader('cache-control', path.endsWith('sw.js') ? 'public, max-age=0, must-revalidate' : 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600');
     res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader('x-ai-office-asset-source-ref', ref);
     if (path.endsWith('sw.js')) res.setHeader('service-worker-allowed', '/');
     return res.status(200).send(data);
   } catch (error) {
