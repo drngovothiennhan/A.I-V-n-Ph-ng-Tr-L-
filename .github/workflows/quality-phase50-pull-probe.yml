@@ -1,11 +1,11 @@
-name: Phase 50 Scoped Token Pull Probe
+name: Phase 50 Scoped Token Candidate Probe
 
 on:
   push:
     branches: [ai-office-phase50-deterministic-project-file]
 
 jobs:
-  production-pull-probe:
+  candidate-probe:
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -20,14 +20,16 @@ jobs:
         run: test -n "$VERCEL_TOKEN"
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@59.11.7
-      - name: Bind deterministic project file
+      - name: Deploy no-traffic production candidate with scoped token
+        id: deploy
         shell: bash
         run: |
           rm -rf .vercel
-          mkdir -p .vercel
-          node -e "require('fs').writeFileSync('.vercel/project.json',JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID,projectName:'ai-van-phong-tro-ly'}))"
-          node -e "const p=require('./.vercel/project.json'); if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID) process.exit(1); console.log('deterministic project binding verified:',p.projectId,p.orgId)"
-      - name: Pull production configuration read-only
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-      - name: Verify linked project survived pull
-        run: node -e "const p=require('./.vercel/project.json'); if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID) process.exit(1); console.log('production pull project verified:',p.projectId,p.orgId)"
+          URL="$(vercel deploy --prod --skip-domain --yes --env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA")"
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Scoped-token candidate created without production traffic: $URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Report candidate only
+        run: |
+          echo "Candidate probe succeeded: ${{ steps.deploy.outputs.url }}"
+          echo "NO PROMOTION WAS REQUESTED." >> "$GITHUB_STEP_SUMMARY"
