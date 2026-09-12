@@ -1,0 +1,24 @@
+name: Phase 36 Honest Grounding Health QA
+
+on:
+  push:
+    branches: [ai-office-phase36-honest-grounding-health]
+
+jobs:
+  honest-grounding-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          cp api/health.ts /tmp/health-v36.mjs
+          node --check /tmp/health-v36.mjs
+          node --check tests/provider-smoke-contract-v41.test.mjs
+      - name: Provider smoke and honest Grounding health regression
+        run: node tests/provider-smoke-contract-v41.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
