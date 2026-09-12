@@ -12,12 +12,18 @@ test('Office V2 production release remains candidate-first with exact-source gat
   assert.match(release,/x-ai-office-source-commit/);
   assert.match(release,/promote\/\$CANDIDATE_ID/);
   assert.match(release,/rollback\/\$PREVIOUS_ID/);
+  assert.match(release,/group: ai-office-production-release/);
+  assert.match(release,/cancel-in-progress: false/);
 });
 
 test('protected candidate smoke uses ephemeral automation bypass and revokes it before promotion',()=>{
   assert.match(release,/\/v1\/projects\/\$VERCEL_PROJECT_ID\/protection-bypass/);
   assert.match(release,/generate:\{secret:/);
   assert.match(release,/x-vercel-protection-bypass:/);
+  assert.match(release,/x-vercel-set-bypass-cookie: true/);
+  assert.match(release,/--location/);
+  assert.match(release,/--cookie-jar "\$COOKIE_JAR" --cookie "\$COOKIE_JAR"/);
+  assert.match(release,/--post301 --post302 --post303/);
   assert.match(release,/revoke:\{secret:process\.argv\[1\],regenerate:false\}/);
   const revokeIndex=release.indexOf('Revoke ephemeral automation bypass');
   const promoteIndex=release.indexOf('Promote verified candidate');
