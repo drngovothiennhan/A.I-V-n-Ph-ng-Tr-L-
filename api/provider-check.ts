@@ -14,6 +14,24 @@ function json(res, status, body) {
   res.setHeader('x-content-type-options', 'nosniff');
   return res.status(status).json(body);
 }
+function firstHeader(value='') {
+  return String(value || '').split(',')[0].trim().toLowerCase();
+}
+function sameOriginDiagnosticRequest(req) {
+  const host = firstHeader(req.headers?.['x-forwarded-host'] || req.headers?.host || '');
+  const referer = String(req.headers?.referer || '');
+  if (!host || !referer) return false;
+  let refererHost = '';
+  try { refererHost = new URL(referer).host.toLowerCase(); } catch { return false; }
+  if (refererHost !== host) return false;
+  const site = firstHeader(req.headers?.['sec-fetch-site'] || '');
+  const mode = firstHeader(req.headers?.['sec-fetch-mode'] || '');
+  const dest = firstHeader(req.headers?.['sec-fetch-dest'] || '');
+  if (site && site !== 'same-origin') return false;
+  if (mode && !['cors', 'same-origin'].includes(mode)) return false;
+  if (dest && dest !== 'empty') return false;
+  return true;
+}
 
 async function probeGemini() {
   const key = process.env.GEMINI_API_KEY || '';
@@ -144,8 +162,17 @@ export default async function handler(req, res) {
     }
   };
   if (probe === 'config') return json(res, 200, config);
-  if (probe === 'gemini') return json(res, 200, { ...config, probe: { gemini: await probeGemini() } });
-  if (probe === 'gemini-grounding') return json(res, 200, { ...config, probe: { geminiGrounding: await probeGeminiGrounding() } });
+  if (probe === 'gemini' || probe === 'gemini-grounding') {
+    if (!sameOriginDiagnosticRequest(req)) {
+      return json(res, 403, {
+        error: 'MANUAL_DIAGNOSTIC_SAME_ORIGIN_REQUIRED',
+        probe,
+        providerCallMade: false
+      });
+    }
+    if (probe === 'gemini') return json(res, 200, { ...config, probe: { gemini: await probeGemini() } });
+    return json(res, 200, { ...config, probe: { geminiGrounding: await probeGeminiGrounding() } });
+  }
   if (probe === 'xiaozhi') return json(res, 200, { ...config, probe: { xiaozhi: await probeXiaozhi() } });
   if (probe === 'all') {
     return json(res, 200, {
