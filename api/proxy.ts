@@ -53,6 +53,13 @@ function chiefThinkingLevel(body) {
   return DEFAULT_THINKING_LEVEL;
 }
 
+function chiefResponseMode(body, message) {
+  const requested = String(body?.responseMode || '').toLowerCase();
+  if (['brief', 'detailed', 'auto'].includes(requested)) return requested;
+  if (/\b(CÂU HỎI|QUESTION)\b|trả lời đúng câu hỏi|trả lời chính xác bằng tiếng việt/i.test(message)) return 'brief';
+  return 'auto';
+}
+
 async function chief(body) {
   const message = cleanText(body?.message, 24000);
   if (!message) return { reply: '' };
@@ -60,6 +67,10 @@ async function chief(body) {
   if (!key) return { reply: '', provider: 'local', fallback: true, providerHealth: 'not-configured' };
   const model = geminiModel();
   const thinkingLevel = chiefThinkingLevel(body);
+  const responseMode = chiefResponseMode(body, message);
+  const finalMessage = responseMode === 'brief'
+    ? `YÊU CẦU PHONG CÁCH: Trả lời trực tiếp, ưu tiên 1-5 dòng. Không lặp lại câu hỏi, không giải thích quy trình nội bộ, không tạo thêm nhiệm vụ nếu người dùng chỉ hỏi thông tin. Chỉ dài hơn khi người dùng yêu cầu chi tiết.\n\n${message}`
+    : message;
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
   let response;
   try {
@@ -67,9 +78,9 @@ async function chief(body) {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: message }] }],
+        contents: [{ role: 'user', parts: [{ text: finalMessage }] }],
         generationConfig: {
-          maxOutputTokens: 4096,
+          maxOutputTokens: responseMode === 'brief' ? 900 : 4096,
           thinkingConfig: { thinkingLevel }
         }
       }),
@@ -86,7 +97,8 @@ async function chief(body) {
       limitation: 'GEMINI_TIMEOUT_FALLBACK',
       timeoutMs: CHIEF_TIMEOUT_MS,
       model,
-      thinkingLevel
+      thinkingLevel,
+      responseMode
     };
   }
   if (!response.ok) return {
@@ -96,11 +108,12 @@ async function chief(body) {
     providerHealth: [401, 403, 429].includes(response.status) ? 'degraded' : 'upstream-error',
     upstreamStatus: response.status,
     model,
-    thinkingLevel
+    thinkingLevel,
+    responseMode
   };
   const data = await response.json();
   const reply = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('') || '';
-  return { reply, provider: 'gemini', fallback: false, providerHealth: 'healthy', model, thinkingLevel };
+  return { reply, provider: 'gemini', fallback: false, providerHealth: 'healthy', model, thinkingLevel, responseMode };
 }
 
 async function webRead(body) {
