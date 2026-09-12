@@ -1,6 +1,6 @@
 # A.I. VĂN PHÒNG TRỢ LÝ — EXECUTION STATE
 
-Updated: 2026-09-12 — Phase 56 live, release verification repair in progress.
+Updated: 2026-09-12 — Phase 56 live, release verification repair verified in CI.
 
 ## CURRENT_PHASE
 Phase 56 PRODUCTION VERIFIED for health and Office artifacts. Do not roll back or rebuild Phase 56 because historical release run 34676910385 failed.
@@ -43,11 +43,20 @@ Phase 56 PRODUCTION VERIFIED for health and Office artifacts. Do not roll back o
 - Drive provider priority: Apps Script bridge then Service Account readonly. Ground truth 02_APPROVED; blocked 00_INBOX and 07_ARCHIVE.
 - XiaoZhi gateway reachable; upstream not configured. Real microphone recognition and audible playback remain UNVERIFIED. Do not report voice end-to-end PASS.
 
+## RELEASE_VERIFICATION_RESULT
+- CI repair commit: `b4ce0d3f4fa57f285ae0da6e1890b4c3243c1684` on `ai-office-phase56-promote`.
+- Run `34678095067`, attempt 2, job `103511693844`: SUCCESS. All steps passed: six verifier regressions; main/source lock; live deployment ID; public health/UI/assets; exact-source DOCX/XLSX/PPTX; real Gemini response 4; research/Drive/image/ingest gateways; explicit voice gateway probe.
+- Attempt 1, job `103511483861`: selftest PASS, Gemini upstream 429 caused a truthful FAIL. One later retry succeeded. The 429 is recorded as transient provider degradation, not erased or claimed fixed by this CI change.
+- Fresh browser UI test returned `2 + 2 bằng 4.` with internal checkbox OFF.
+- Browser reached microphone permission dialog. Automatic approval review rejected granting microphone permission because exact access scope was not considered authorized. No microphone access was granted; end-to-end audio QA is BLOCKED pending explicit user permission. The dialog was dismissed and text QA completed.
+- App deployment was neither rebuilt nor promoted nor rolled back. Phase 56 source is preserved.
+
 ## NEXT_ACTIONS
-1. Run repaired CI against existing Phase 56 deployment; record new run ID and all actual outcomes.
-2. Preserve application source and no-traffic policy. Do not rerun the historical promotion job.
-3. Check live browser voice controls; report actual audio limitation honestly.
+1. Obtain explicit permission for microphone access to ai-van-phong-tro-ly.vercel.app for this QA session, then test actual speech input and playback. Audio QA cannot be inferred from gateway health or text success.
+2. XiaoZhi upstream is still missing; configure only with real upstream URL/credential. Browser voice is the existing fallback, not evidence of an upstream XiaoZhi brain.
+3. Preserve application source and no-traffic policy. Do not rerun historical run 34676910385 (its immutable workflow still promotes/rolls back).
 4. If historical marker rejection recurs, retain response diagnostics; a next candidate may add non-sensitive handler reason codes without loosening the exact-source gate.
+5. Integrate these docs/CI-only branch changes into main only through a controlled path: the existing main quality workflow has a deploy job, so a routine merge is not a no-deploy operation.
 
 ---
 ## HISTORICAL_STATE_BEFORE_PHASE_56 (superseded; not current blockers)
