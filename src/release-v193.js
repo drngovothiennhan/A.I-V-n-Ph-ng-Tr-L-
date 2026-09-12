@@ -18,7 +18,7 @@ const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
 const OFFICE_V2_TASKS = '2.10.0-chief-delegation-sync';
 const OFFICE_V2_WORKSPACE = '2.10.0-chief-delegation-cards';
 const UI_V2 = '3.0.0-production-shell';
-const LEAN_UI = '3.1.0-active-only';
+const LEAN_UI = '3.1.1-active-only';
 
 function syncReleaseLabels() {
   const uiV2 = document.documentElement?.dataset?.aiOfficeUi === 'v2';
@@ -70,7 +70,7 @@ async function bootKnowledgeRouter() {
     taskWorkspace.installOfficeV2TaskWorkspace?.();
     const uiV2 = await import('./office-v2/ui-v2-shell.js?v=3002');
     uiV2.installAIOfficeUIV2?.();
-    const leanDashboard = await import('./office-v2/lean-dashboard-v72.js?v=3100');
+    const leanDashboard = await import('./office-v2/lean-dashboard-v72.js?v=3110');
     leanDashboard.installLeanDashboard?.();
 
     weather.patchVoice?.();
