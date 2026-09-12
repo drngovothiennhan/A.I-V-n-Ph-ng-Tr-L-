@@ -41,18 +41,20 @@ export default async function handler(req, res) {
     html = html
       .replace(/<script type="module" src="\/src\/bootstrap-v17\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/office-v2\/ui-v2-shell\.js(?:\?[^\"]*)?"><\/script>/g, '')
+      .replace(/<script type="module" src="\/src\/v72-smart-runtime\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/bootstrap-v18\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/release-v193\.js(?:\?[^\"]*)?"><\/script>/g, '');
 
-    const uiPreload = '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">';
-    if (!html.includes('/src/office-v2/ui-v2-shell.js?v=3002')) {
-      html = html.includes('</head>') ? html.replace('</head>', `${uiPreload}</head>`) : `${uiPreload}${html}`;
+    const preloads = '<link rel="modulepreload" href="/src/v72-smart-runtime.js?v=720"><link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">';
+    if (!html.includes('/src/v72-smart-runtime.js?v=720')) {
+      html = html.includes('</head>') ? html.replace('</head>', `${preloads}</head>`) : `${preloads}${html}`;
     }
 
+    const smartRuntime = '<script type="module" src="/src/v72-smart-runtime.js?v=720"></script>';
     const earlyUi = '<script type="module" src="/src/office-v2/ui-v2-shell.js?v=3002"></script>';
     const bootstrap = '<script type="module" src="/src/bootstrap-v18.js?v=193"></script>';
     const releaseSync = '<script type="module" src="/src/release-v193.js?v=193"></script>';
-    const runtimeScripts = `${earlyUi}${bootstrap}${releaseSync}`;
+    const runtimeScripts = `${smartRuntime}${earlyUi}${bootstrap}${releaseSync}`;
     html = html.includes('</body>') ? html.replace('</body>', `${runtimeScripts}</body>`) : `${html}${runtimeScripts}`;
     return res.status(200).send(html);
   } catch (error) {
