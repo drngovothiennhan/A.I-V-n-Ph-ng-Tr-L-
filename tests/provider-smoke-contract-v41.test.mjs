@@ -17,4 +17,17 @@ assert.match(health, /configured-unverified/);
 assert.match(health, /groundingVerificationMode:\s*'explicit-manual-probe'/);
 assert.doesNotMatch(health, /generateContent|google_search/,'cheap health endpoint must not spend Gemini quota');
 
-console.log('provider smoke + honest Grounding health contract: PASS');
+assert.match(health, /const voiceProbeRequested = String\(req\.query\?\.probe \|\| ''\)\.toLowerCase\(\) === 'voice'/,
+  'XiaoZhi live health must require an explicit voice probe query');
+assert.match(health, /const voiceRender = voiceProbeRequested \? await probeVoiceRender\(\) : null/,
+  'passive health must not contact XiaoZhi Render');
+assert.doesNotMatch(health, /const voiceRender = await probeVoiceRender\(\)/,
+  'unconditional XiaoZhi probing must not return');
+assert.match(health, /healthMode: voiceProbeRequested \? 'voice-live-probe' : 'passive-config'/,
+  'health response must disclose passive versus live voice mode');
+assert.match(health, /runtimeStatus: xiaozhiRuntimeStatus/,
+  'XiaoZhi runtime status must preserve not-probed as a first-class state');
+assert.match(health, /reason: 'EXPLICIT_VOICE_PROBE_REQUIRED'/,
+  'passive voice telemetry must explain why live reachability is unknown');
+
+console.log('provider smoke + honest passive health contract: PASS');
