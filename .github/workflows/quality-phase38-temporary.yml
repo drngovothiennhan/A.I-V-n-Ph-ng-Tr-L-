@@ -1,0 +1,28 @@
+name: Phase 38 Passive Health Voice Probe QA
+
+on:
+  push:
+    branches: [ai-office-phase38-passive-health-voice-probe]
+
+jobs:
+  passive-health-voice-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          cp api/health.ts /tmp/health-v38.mjs
+          node --check /tmp/health-v38.mjs
+          node --check src/operations-center-v36.js
+          node --check tests/provider-smoke-contract-v41.test.mjs
+          node --check tests/operations-center-v36.test.mjs
+      - name: Honest passive health regression
+        run: node tests/provider-smoke-contract-v41.test.mjs
+      - name: Operations Center explicit voice regression
+        run: node tests/operations-center-v36.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
