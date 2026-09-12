@@ -35,8 +35,24 @@ assert.match(source,/function startTaskRefresh\(\)\{[\s\S]{0,260}activeTab==='ta
 assert.match(source,/clearInterval\(taskTimer\)/,'Task Center polling must be cleaned up');
 assert.match(source,/data-ops36-nav='ai'|dataset\.ops36Nav='ai'/,'existing navigation must gain one AI Center entry instead of a second dashboard');
 assert.match(source,/Nhiệm vụ/,'existing task navigation must be reused');
+
+assert.match(source,/async function fetchHealth\(\{voice=false\}=\{\}\)/,
+  'AI Center health fetch must default to passive voice semantics');
+assert.match(source,/voice\?'probe=voice&':''/,
+  'XiaoZhi live reachability must use an explicit voice probe query');
+assert.match(source,/CONFIGURED \/ NOT PROBED/,
+  'unprobed XiaoZhi must remain unknown rather than degraded');
+assert.match(source,/id="ops36VoiceProbe">Kiểm tra XiaoZhi/,
+  'AI Center must expose an explicit XiaoZhi live-check control');
+assert.match(source,/ops36Refresh'\)\.onclick=\(\)=>void renderAi\(\{refresh:true,voice:false\}\)/,
+  'ordinary health refresh must stay passive');
+assert.match(source,/ops36VoiceProbe'\)\.onclick=\(\)=>void renderAi\(\{refresh:true,voice:true\}\)/,
+  'only the dedicated XiaoZhi control may request live voice health');
+assert.match(source,/checkVoice:\(\)=>fetchHealth\(\{voice:true\}\)/,
+  'public Operations API must keep explicit voice checking separate from passive refresh');
+
 assert.match(release,/operations-center-v36\.js\?v=360/,'release must boot unified Operations Center');
 assert.match(release,/operations\.installOperationsCenter\?\.\(\)/,'release must install Operations Center');
 assert.match(release,/window\.AIOfficeOperationsVersion = OPERATIONS_CENTER/,'release must expose Operations Center version');
 
-console.log('operations-center-v36: real task state + honest AI telemetry + bounded polling PASS');
+console.log('operations-center-v36: real task state + honest passive AI telemetry + bounded polling PASS');
