@@ -1,0 +1,50 @@
+name: V72 No-Traffic Candidate QA
+
+on:
+  push:
+    branches: [ai-office-v72-smart-answer-clean-ux]
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: V72 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts
+          node --check src/v72-smart-core.js
+          node --check src/v72-smart-runtime.js
+          node --test tests/office-v2-*.test.mjs
+      - name: Require Vercel credential
+        run: test -n "$VERCEL_TOKEN"
+      - name: Install Vercel CLI and bind project
+        shell: bash
+        run: |
+          npm install --global vercel@59.11.7
+          rm -rf .vercel
+          mkdir -p .vercel
+          node - <<'NODE'
+          const fs=require('fs');
+          fs.writeFileSync('.vercel/project.json',JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}));
+          NODE
+      - name: Deploy no-traffic production-environment candidate
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(vercel deploy --prod --skip-domain --yes --env "AI_OFFICE_SOURCE_COMMIT=$GITHUB_SHA" --token="$VERCEL_TOKEN")"
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "V72 candidate — NO TRAFFIC: $URL" >> "$GITHUB_STEP_SUMMARY"
