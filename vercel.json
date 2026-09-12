@@ -9,6 +9,7 @@
   },
   "rewrites": [
     { "source": "/", "destination": "/api/app" },
+    { "source": "/api/health-v17", "destination": "/api/health-legacy-retired" },
     { "source": "/api/drive-brain", "destination": "/api/drive-brain-gateway" },
     { "source": "/api/research", "destination": "/api/research-gateway" },
     { "source": "/api/research-v28", "destination": "/api/research-legacy-retired" },
