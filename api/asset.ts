@@ -1,6 +1,7 @@
 const OWNER = 'drngovothiennhan';
 const REPO = 'A.I-V-n-Ph-ng-Tr-L-';
 const ALLOWED_PREFIXES = ['src/', 'public/'];
+const ALLOWED_EXACT = new Set(['integrations/google-apps-script/DriveBrainBridge.gs']);
 const RELEASE = '1.9.3';
 
 function sourceRef() {
@@ -10,6 +11,7 @@ function sourceRef() {
 
 function contentType(path) {
   if (path.endsWith('.js') || path.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
+  if (path.endsWith('.gs')) return 'text/plain; charset=utf-8';
   if (path.endsWith('.webmanifest')) return 'application/manifest+json; charset=utf-8';
   if (path.endsWith('.json')) return 'application/json; charset=utf-8';
   if (path.endsWith('.png')) return 'image/png';
@@ -20,7 +22,8 @@ function contentType(path) {
 
 function normalize(raw) {
   const path = String(raw || '').replace(/^\/+/, '');
-  if (!path || path.includes('..') || !ALLOWED_PREFIXES.some((p) => path.startsWith(p))) throw new Error('ASSET_PATH_FORBIDDEN');
+  const allowed = ALLOWED_EXACT.has(path) || ALLOWED_PREFIXES.some((p) => path.startsWith(p));
+  if (!path || path.includes('..') || !allowed) throw new Error('ASSET_PATH_FORBIDDEN');
   return path;
 }
 
