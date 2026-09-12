@@ -1,0 +1,28 @@
+name: Phase 41 Runtime Same-Origin Gateways QA
+
+on:
+  push:
+    branches: [ai-office-phase41-runtime-same-origin-gateways]
+
+jobs:
+  runtime-gateways:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check api/research-gateway.ts
+          node --check api/proxy-gateway.ts
+          node --check tests/vercel-research-route-v39.test.mjs
+          node --check tests/proxy-chief-resilience-v37.test.mjs
+          node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
+      - name: Research gateway regression
+        run: node tests/vercel-research-route-v39.test.mjs
+      - name: Proxy gateway regression
+        run: node tests/proxy-chief-resilience-v37.test.mjs
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
