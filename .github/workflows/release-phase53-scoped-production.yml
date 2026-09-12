@@ -7,6 +7,7 @@ on:
       - 'src/bootstrap-v17.js'
       - 'src/office-v2/**'
       - 'tests/office-v2-*.test.mjs'
+      - 'tests/provider-smoke-contract-v41.test.mjs'
       - '.github/workflows/quality-office-v2.yml'
       - '.github/workflows/release-phase53-scoped-production.yml'
 
@@ -31,6 +32,7 @@ jobs:
           npm install --ignore-scripts
           node --test tests/office-v2-core.test.mjs tests/office-v2-legacy-bridge.test.mjs tests/office-v2-shadow-runtime.test.mjs tests/office-v2-shadow-hook.test.mjs
           node tests/source-policy-v20.test.mjs
+          node tests/provider-smoke-contract-v41.test.mjs
           node tests/vercel-typescript-build-v53.test.mjs
           node tests/vercel-function-budget-v54.test.mjs
           node tests/artifact-engine-v24.test.mjs
@@ -102,59 +104,35 @@ jobs:
           echo "id=$CANDIDATE_ID" >> "$GITHUB_OUTPUT"
           echo "Candidate built without traffic: $CANDIDATE_ID ($URL)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create temporary protected-candidate share bypass
-        shell: bash
-        run: |
-          CANDIDATE_ID="${{ steps.deploy.outputs.id }}"
-          curl --fail --silent --show-error --request PATCH \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header "Content-Type: application/json" \
-            --data '{"ttl":300}' \
-            "https://api.vercel.com/aliases/$CANDIDATE_ID/protection-bypass?teamId=$VERCEL_ORG_ID" \
-            -o /tmp/candidate-bypass.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/candidate-bypass.json','utf8'));
-          if(!data.value || typeof data.value!=='string') process.exit(1);
-          fs.writeFileSync('/tmp/candidate-bypass-secret',data.value,{mode:0o600});
-          NODE
-          echo "Temporary candidate share bypass created with 300-second TTL." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Candidate exact-source smoke
+      - name: Candidate exact-source smoke through authenticated Vercel CLI
         shell: bash
         run: |
           URL="${{ steps.deploy.outputs.url }}"
-          BYPASS="$(cat /tmp/candidate-bypass-secret)"
-          JAR=/tmp/candidate-cookie.jar
-          curl --fail --silent --show-error --location --retry 6 --retry-all-errors --retry-delay 3 \
-            --cookie-jar "$JAR" --cookie "$JAR" \
-            -D /tmp/candidate-health.headers \
-            "$URL/api/health?_vercel_share=$BYPASS" -o /tmp/candidate-health.json
+          vercel curl /api/health --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
+            -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
           node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1)"
           SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/candidate-health.headers | tail -1 | tr -d '\r')"
           [ "$SOURCE_COMMIT" = "$GITHUB_SHA" ]
 
-          curl --fail --silent --show-error --location --retry 4 --retry-all-errors --retry-delay 2 \
-            --cookie-jar "$JAR" --cookie "$JAR" \
-            -D /tmp/candidate-ui.headers \
-            "$URL/?_vercel_share=$BYPASS" -o /tmp/candidate-ui.html
+          vercel curl / --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/candidate-ui.headers -o /tmp/candidate-ui.html
           UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/candidate-ui.headers | tail -1 | tr -d '\r')"
           [ "$UI_SOURCE_REF" = "$GITHUB_SHA" ]
 
-          curl --fail --silent --show-error --location --retry 4 --retry-all-errors --retry-delay 2 \
-            --cookie-jar "$JAR" --cookie "$JAR" \
-            -D /tmp/candidate-asset.headers \
-            "$URL/src/research-safety-guard-v263.js?_vercel_share=$BYPASS" -o /tmp/candidate-safety.js
+          vercel curl /src/research-safety-guard-v263.js --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
+            -D /tmp/candidate-asset.headers -o /tmp/candidate-safety.js
           ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/candidate-asset.headers | tail -1 | tr -d '\r')"
           [ "$ASSET_SOURCE_REF" = "$GITHUB_SHA" ]
           grep -q "2.6.3-client-research-safety-guard" /tmp/candidate-safety.js
 
-          curl --fail --silent --show-error --location --retry 4 --retry-all-errors --retry-delay 2 \
-            --cookie-jar "$JAR" --cookie "$JAR" \
+          vercel curl /api/selftest --deployment "$URL" --token="$VERCEL_TOKEN" -- \
+            --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
             --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
-            "$URL/api/selftest?_vercel_share=$BYPASS" -o /tmp/candidate-selftest.json
+            -o /tmp/candidate-selftest.json
           node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1)"
-          rm -f /tmp/candidate-bypass-secret "$JAR"
           echo "Candidate exact-source smoke PASS: $SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Promote verified candidate by scoped REST API
