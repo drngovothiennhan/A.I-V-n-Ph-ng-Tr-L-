@@ -2,7 +2,7 @@ name: Office V2 + Office OS Core QA
 
 on:
   push:
-    branches: [main, ai-office-v60-scoped-shadow-release, ai-office-os-p0-p1-scope-shell]
+    branches: [main, ai-office-v60-scoped-shadow-release, ai-office-os-p0-p1-scope-shell, ai-office-os-p2-p3-connectors-chief-brain]
     paths:
       - 'api/app.ts'
       - 'src/bootstrap-v17.js'
@@ -61,9 +61,12 @@ jobs:
           node --check src/office-v2/shadow-interceptor.js
           node --check src/office-v2/index.js
           node --check src/office-os/office-shell-v1.js
+          node --check src/office-os/connector-registry-v1.js
+          node --check src/office-os/answer-policy-v1.js
+          node --check src/office-os/chief-answer-router-v1.js
       - name: Office V2 contract, privacy, shadow-hook and release-gate tests
         run: node --test tests/office-v2-*.test.mjs
-      - name: Office OS P1 shell and scope-lock tests
+      - name: Office OS P1-P3 scope, shell, connector and Chief brain tests
         run: node --test tests/office-os-*.test.mjs
       - name: Protect Phase 56 production contracts
         run: |
