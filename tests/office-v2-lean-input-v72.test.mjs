@@ -14,17 +14,16 @@ test('quoted meta questions are analysis only, never direct task instructions',(
   assert.equal(isQuotedMetaQuestion('Hãy so sánh hai bảng dữ liệu và xuất Excel'),false);
 });
 
-test('canonical input gate is guaranteed before legacy bootstrap',()=>{
+test('canonical input gate is guaranteed before stable runtime and Office OS release',()=>{
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
-  const ui=app.indexOf("await import('/src/office-v2/ui-v2-shell.js?v=3002')");
-  const leanUi=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3110')");
   const legacy=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const releaseSync=app.indexOf("await import('/src/release-v193.js?v=193')");
-  assert.ok(gate>=0&&ui>gate&&leanUi>ui&&legacy>leanUi&&releaseSync>legacy);
+  const releaseSync=app.indexOf("await import('/src/release-v193.js?v=194')");
+  assert.ok(gate>=0&&legacy>gate&&releaseSync>legacy);
   assert.match(app,/Mặc định: trả lời ngắn gọn\. Chỉ tạo nhiệm vụ hoặc file khi bạn yêu cầu rõ\./);
+  assert.match(app,/office-os\/office-shell-v1\.js\?v=100/);
 });
 
-test('lean dashboard hides terminal, zero-value and mobile runtime noise without deleting source data',()=>{
+test('lean dashboard remains safe as rollback-only asset without mutating source data',()=>{
   assert.equal(LEAN_DASHBOARD_VERSION,'3.1.1-active-only');
   assert.match(lean,/DONE_RE/);
   assert.match(lean,/compactJobs/);
@@ -40,11 +39,13 @@ test('lean dashboard hides terminal, zero-value and mobile runtime noise without
   assert.doesNotMatch(lean,/\.remove\s*\(/);
 });
 
-test('release re-applies refreshed lean visibility after dynamic modules render',()=>{
-  assert.match(release,/const LEAN_UI = '3\.1\.1-active-only'/);
-  const workspace=release.indexOf("task-workspace.js?v=2101");
-  const ui=release.indexOf("ui-v2-shell.js?v=3002");
-  const leanUi=release.indexOf("lean-dashboard-v72.js?v=3110");
-  assert.ok(workspace>=0&&ui>workspace&&leanUi>ui);
-  assert.match(release,/installLeanDashboard/);
+test('production release mounts Office OS instead of re-applying lean UI',()=>{
+  assert.match(release,/const OFFICE_OS_SHELL = '1\.0\.0-p1'/);
+  const taskBridge=release.indexOf("task-runtime-bridge.js?v=2101");
+  const officeOS=release.indexOf("office-os/office-shell-v1.js?v=100");
+  assert.ok(taskBridge>=0&&officeOS>taskBridge);
+  assert.match(release,/installAIOfficeOSShell/);
+  assert.doesNotMatch(release,/installLeanDashboard/);
+  assert.match(release,/cred22Launcher/);
+  assert.match(release,/v19Dock/);
 });

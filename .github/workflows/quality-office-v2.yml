@@ -1,16 +1,19 @@
-name: Office V2 Shadow Core QA
+name: Office V2 + Office OS Core QA
 
 on:
   push:
-    branches: [main, ai-office-v60-scoped-shadow-release]
+    branches: [main, ai-office-v60-scoped-shadow-release, ai-office-os-p0-p1-scope-shell]
     paths:
       - 'api/app.ts'
       - 'src/bootstrap-v17.js'
       - 'src/release-v193.js'
       - 'src/canonical-input-gate-v71.js'
       - 'src/office-v2/**'
+      - 'src/office-os/**'
       - 'tests/office-v2-*.test.mjs'
+      - 'tests/office-os-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
+      - 'docs/AI_OFFICE_OS_SCOPE_LOCK.md'
       - '.github/workflows/quality-office-v2.yml'
       - '.github/workflows/release-phase53-scoped-production.yml'
   pull_request:
@@ -20,8 +23,11 @@ on:
       - 'src/release-v193.js'
       - 'src/canonical-input-gate-v71.js'
       - 'src/office-v2/**'
+      - 'src/office-os/**'
       - 'tests/office-v2-*.test.mjs'
+      - 'tests/office-os-*.test.mjs'
       - 'docs/MASTER_EXECUTION_PROMPT_OFFICE_V2.md'
+      - 'docs/AI_OFFICE_OS_SCOPE_LOCK.md'
       - '.github/workflows/quality-office-v2.yml'
       - '.github/workflows/release-phase53-scoped-production.yml'
   workflow_dispatch:
@@ -35,7 +41,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm install --ignore-scripts
-      - name: Syntax check Office V2 and canonical hook
+      - name: Syntax check Office V2, Office OS and canonical hook
         run: |
           node --check src/bootstrap-v17.js
           node --check src/release-v193.js
@@ -54,8 +60,11 @@ jobs:
           node --check src/office-v2/shadow-runtime.js
           node --check src/office-v2/shadow-interceptor.js
           node --check src/office-v2/index.js
+          node --check src/office-os/office-shell-v1.js
       - name: Office V2 contract, privacy, shadow-hook and release-gate tests
         run: node --test tests/office-v2-*.test.mjs
+      - name: Office OS P1 shell and scope-lock tests
+        run: node --test tests/office-os-*.test.mjs
       - name: Protect Phase 56 production contracts
         run: |
           node --test tests/ai-orchestrator-core-v32.test.mjs
