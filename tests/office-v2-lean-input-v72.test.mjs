@@ -14,13 +14,15 @@ test('quoted meta questions are analysis only, never direct task instructions',(
   assert.equal(isQuotedMetaQuestion('Hãy so sánh hai bảng dữ liệu và xuất Excel'),false);
 });
 
-test('canonical input gate is guaranteed before stable runtime and Office OS release',()=>{
+test('Office OS renders before canonical input and stable runtime support',()=>{
+  const office=app.indexOf("await import('/src/office-os/office-shell-v1.js?v=101')");
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
   const legacy=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const releaseSync=app.indexOf("await import('/src/release-v193.js?v=194')");
-  assert.ok(gate>=0&&legacy>gate&&releaseSync>legacy);
+  const releaseSync=app.indexOf("await import('/src/release-v193.js?v=195')");
+  assert.ok(office>=0&&gate>office&&legacy>gate&&releaseSync>legacy);
   assert.match(app,/Mặc định: trả lời ngắn gọn\. Chỉ tạo nhiệm vụ hoặc file khi bạn yêu cầu rõ\./);
-  assert.match(app,/office-os\/office-shell-v1\.js\?v=100/);
+  assert.match(app,/office-os\/office-shell-v1\.js\?v=101/);
+  assert.match(app,/#app\{display:none!important\}/);
 });
 
 test('lean dashboard remains safe as rollback-only asset without mutating source data',()=>{
@@ -39,12 +41,13 @@ test('lean dashboard remains safe as rollback-only asset without mutating source
   assert.doesNotMatch(lean,/\.remove\s*\(/);
 });
 
-test('production release mounts Office OS instead of re-applying lean UI',()=>{
+test('production release mounts Office OS before task runtime support and never reapplies lean UI',()=>{
   assert.match(release,/const OFFICE_OS_SHELL = '1\.0\.0-p1'/);
+  const officeOS=release.indexOf("office-os/office-shell-v1.js?v=101");
   const taskBridge=release.indexOf("task-runtime-bridge.js?v=2101");
-  const officeOS=release.indexOf("office-os/office-shell-v1.js?v=100");
-  assert.ok(taskBridge>=0&&officeOS>taskBridge);
+  assert.ok(officeOS>=0&&taskBridge>officeOS);
   assert.match(release,/installAIOfficeOSShell/);
+  assert.match(release,/installOfficeV2TaskRuntimeBridge/);
   assert.doesNotMatch(release,/installLeanDashboard/);
   assert.match(release,/cred22Launcher/);
   assert.match(release,/v19Dock/);

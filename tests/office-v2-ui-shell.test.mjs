@@ -32,14 +32,15 @@ test('legacy bootstrap remains compatible for rollback',()=>{
   assert.match(bootstrap,/AIOfficeUIV2Version='3\.0\.0-production-shell'/);
 });
 
-test('production path mounts Office OS while preserving stable task runtime bridge',()=>{
+test('production path renders Office OS first while preserving stable task runtime bridge',()=>{
   assert.match(app,/bootstrap-v17\\\.js/);
   assert.match(app,/release-v193\\\.js/);
-  assert.match(app,/office-os\/office-shell-v1\.js\?v=100/);
+  assert.match(app,/office-os\/office-shell-v1\.js\?v=101/);
+  assert.match(app,/#app\{display:none!important\}/);
   assert.doesNotMatch(app,/rel="modulepreload" href="\/src\/office-v2\/ui-v2-shell/);
+  const officeOS=release.indexOf("office-os/office-shell-v1.js?v=101");
   const tasks=release.indexOf("task-runtime-bridge.js?v=2101");
-  const officeOS=release.indexOf("office-os/office-shell-v1.js?v=100");
-  assert.ok(tasks>=0&&officeOS>tasks);
+  assert.ok(officeOS>=0&&tasks>officeOS);
   assert.match(release,/installOfficeV2TaskRuntimeBridge/);
   assert.match(release,/installAIOfficeOSShell/);
   assert.doesNotMatch(release,/installOfficeV2TaskWorkspace|installAIOfficeUIV2/);

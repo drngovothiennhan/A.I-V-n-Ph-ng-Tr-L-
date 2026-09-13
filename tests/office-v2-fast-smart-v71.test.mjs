@@ -33,13 +33,15 @@ test('direct command still executes as data task',()=>{
   assert.ok(canonical.artifactFormats.includes('xlsx'));
 });
 
-test('Office OS is preloaded while canonical gate still executes before legacy runtime',()=>{
-  assert.match(app,/rel="modulepreload" href="\/src\/office-os\/office-shell-v1\.js\?v=100"/);
+test('Office OS is first-render primary before canonical and legacy runtime support',()=>{
+  assert.match(app,/rel="modulepreload" href="\/src\/office-os\/office-shell-v1\.js\?v=101"/);
+  const office=app.indexOf("await import('/src/office-os/office-shell-v1.js?v=101')");
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
   const bootstrap=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const sync=app.indexOf("await import('/src/release-v193.js?v=194')");
-  assert.ok(gate>=0&&bootstrap>gate&&sync>bootstrap,'canonical input must execute before stable runtime and Office OS release boot');
-  assert.match(release,/office-os\/office-shell-v1\.js\?v=100/);
+  const sync=app.indexOf("await import('/src/release-v193.js?v=195')");
+  assert.ok(office>=0&&gate>office&&bootstrap>gate&&sync>bootstrap,'Office OS must render before canonical and legacy runtime support');
+  assert.match(app,/#app\{display:none!important\}/);
+  assert.match(release,/office-os\/office-shell-v1\.js\?v=101/);
   assert.match(release,/installAIOfficeOSShell/);
   assert.doesNotMatch(release,/installAIOfficeUIV2|installLeanDashboard|installMobileShell/);
 });

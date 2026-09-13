@@ -50,11 +50,12 @@ test('Chief router delegates grounded queries to legacy verified path and direct
   assert.match(router,/\/api\/proxy\?op=chief/);
 });
 
-test('release boots P2 connector registry and P3 adaptive answer router before Office OS shell',()=>{
+test('release renders Office OS shell before loading P2 connector and P3 answer support',()=>{
+  const shell=release.indexOf("office-os/office-shell-v1.js?v=101");
   const connectors=release.indexOf("office-os/connector-registry-v1.js?v=100");
   const answers=release.indexOf("office-os/chief-answer-router-v1.js?v=100");
-  const shell=release.indexOf("office-os/office-shell-v1.js?v=100");
-  assert.ok(connectors>=0&&answers>connectors&&shell>answers);
+  assert.ok(shell>=0&&connectors>shell&&answers>connectors);
+  assert.match(release,/installAIOfficeOSShell/);
   assert.match(release,/installConnectorRegistry/);
   assert.match(release,/installChiefAnswerRouter/);
 });

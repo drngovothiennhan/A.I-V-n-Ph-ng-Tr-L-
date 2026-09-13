@@ -25,15 +25,28 @@ test('release boot no longer installs legacy UI V2, lean or mobile shells',()=>{
   assert.doesNotMatch(release,/installAIOfficeUIV2/);
   assert.doesNotMatch(release,/installLeanDashboard/);
   assert.doesNotMatch(release,/installMobileShell/);
-  assert.match(release,/office-os\/office-shell-v1\.js/);
+  assert.match(release,/office-os\/office-shell-v1\.js\?v=101/);
   assert.match(release,/installAIOfficeOSShell/);
+  const shellIndex=release.indexOf("office-os/office-shell-v1.js?v=101");
+  const aiCoreIndex=release.indexOf('ai-orchestrator-core-v32.js');
+  const credentialsIndex=release.indexOf('credential-setup-v22.js');
+  assert.ok(shellIndex>=0&&aiCoreIndex>shellIndex&&credentialsIndex>shellIndex,'Office OS must boot before legacy runtime modules');
 });
 
-test('Vercel app boot chain is reduced to canonical input, runtime and release',()=>{
+test('Vercel renders Office OS first and never exposes legacy dashboard during boot',()=>{
+  assert.match(app,/#app\{display:none!important\}/);
+  assert.match(app,/id=\"aiOfficeOSBoot\"/);
+  assert.match(app,/office-shell-v1\.js\?v=101/);
   assert.match(app,/canonical-input-gate-v71\.js\?v=711/);
   assert.match(app,/bootstrap-v18\.js\?v=193/);
-  assert.match(app,/release-v193\.js\?v=194/);
+  assert.match(app,/release-v193\.js\?v=195/);
+  assert.match(app,/sessionStorage\.setItem\('ai-office-credentials-seen-v230','1'\)/);
   const boot=app.split('const bootChain = ')[1]||'';
+  const shellIndex=boot.indexOf('office-shell-v1.js?v=101');
+  const canonicalIndex=boot.indexOf('canonical-input-gate-v71.js?v=711');
+  const runtimeIndex=boot.indexOf('bootstrap-v18.js?v=193');
+  const releaseIndex=boot.indexOf('release-v193.js?v=195');
+  assert.ok(shellIndex>=0&&canonicalIndex>shellIndex&&runtimeIndex>canonicalIndex&&releaseIndex>runtimeIndex,'Office OS must install before canonical/runtime/release chain');
   assert.doesNotMatch(boot,/ui-v2-shell/);
   assert.doesNotMatch(boot,/lean-dashboard-v72/);
   assert.doesNotMatch(boot,/mobile-shell-v73/);

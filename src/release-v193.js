@@ -44,6 +44,11 @@ function syncReleaseLabels() {
 
 async function bootKnowledgeRouter() {
   try {
+    const officeOS = await import('./office-os/office-shell-v1.js?v=101');
+    officeOS.installAIOfficeOSShell?.();
+    suppressLegacyChrome();
+    try { sessionStorage.setItem('ai-office-credentials-seen-v230','1'); } catch {}
+
     const aiCore = await import('./ai-orchestrator-core-v32.js?v=323');
     aiCore.installAICoreOrchestrator?.();
 
@@ -61,7 +66,7 @@ async function bootKnowledgeRouter() {
     await import('./interaction-control-v21.js?v=211');
     const globalCancel = await import('./global-cancel-v33.js?v=330');
     globalCancel.installGlobalCancel?.();
-    await import('./credential-setup-v22.js?v=230');
+    await import('./credential-setup-v22.js?v=231');
     const authorization = await import('./authorization-broker-v34.js?v=340');
     authorization.installAuthorizationBroker?.();
     const operations = await import('./operations-center-v36.js?v=360');
@@ -77,10 +82,6 @@ async function bootKnowledgeRouter() {
     connectors.installConnectorRegistry?.();
     const answerRouter = await import('./office-os/chief-answer-router-v1.js?v=100');
     answerRouter.installChiefAnswerRouter?.();
-
-    const officeOS = await import('./office-os/office-shell-v1.js?v=100');
-    officeOS.installAIOfficeOSShell?.();
-    suppressLegacyChrome();
 
     weather.patchVoice?.();
     window.AIOfficeV22?.attachAfterV21?.();
