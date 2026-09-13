@@ -7,6 +7,7 @@ import { classifyCanonicalIntent } from '../src/ai-orchestrator-core-v32.js';
 const app=fs.readFileSync(new URL('../api/app.ts',import.meta.url),'utf8');
 const proxy=fs.readFileSync(new URL('../api/proxy.ts',import.meta.url),'utf8');
 const release=fs.readFileSync(new URL('../src/release-v193.js',import.meta.url),'utf8');
+const mobile=fs.readFileSync(new URL('../src/office-v2/mobile-shell-v73.js',import.meta.url),'utf8');
 
 test('meta-question cannot become data/document task or artifact request',()=>{
   const samples=[
@@ -32,16 +33,31 @@ test('direct command still executes as data task',()=>{
   assert.ok(canonical.artifactFormats.includes('xlsx'));
 });
 
-test('UI V2 is preloaded and canonical gate executes before legacy bootstrap',()=>{
+test('UI V2 is preloaded and canonical gate executes before mobile shell and legacy bootstrap',()=>{
   assert.match(app,/rel="modulepreload" href="\/src\/office-v2\/ui-v2-shell\.js\?v=3002"/);
+  assert.match(app,/rel="modulepreload" href="\/src\/office-v2\/mobile-shell-v73\.js\?v=3200"/);
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
   const ui=app.indexOf("await import('/src/office-v2/ui-v2-shell.js?v=3002')");
   const lean=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3110')");
+  const mobileShell=app.indexOf("await import('/src/office-v2/mobile-shell-v73.js?v=3200')");
   const bootstrap=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
   const sync=app.indexOf("await import('/src/release-v193.js?v=193')");
-  assert.ok(gate>=0&&ui>gate&&lean>ui&&bootstrap>lean&&sync>bootstrap,'canonical gate and UI must execute before legacy bootstrap/release');
+  assert.ok(gate>=0&&ui>gate&&lean>ui&&mobileShell>lean&&bootstrap>mobileShell&&sync>bootstrap,'canonical gate, lean UI and mobile shell must execute before legacy bootstrap/release');
   assert.match(release,/ui-v2-shell\.js\?v=3002/);
+  assert.match(release,/mobile-shell-v73\.js\?v=3200/);
   assert.doesNotMatch(release,/ui-v2-shell\.js\?v=3001/);
+});
+
+test('V73 mobile shell is isolated, touch-sized and non-destructive',()=>{
+  assert.match(mobile,/MOBILE_SHELL_VERSION='3\.2\.0-focus-navigation'/);
+  assert.match(mobile,/id='aiMobileBottomNav'|id="aiMobileBottomNav"/);
+  assert.match(mobile,/env\(safe-area-inset-bottom\)/);
+  assert.match(mobile,/min-height:44px/);
+  assert.match(mobile,/data-ai-mobile-view/);
+  assert.match(mobile,/aiMobileMoreOpen/);
+  assert.doesNotMatch(mobile,/localStorage\.(?:setItem|removeItem|clear)/);
+  assert.doesNotMatch(mobile,/fetch\s*\(/);
+  assert.doesNotMatch(mobile,/\.remove\s*\(/);
 });
 
 test('Chief reasoning is medium by default, not low',()=>{
