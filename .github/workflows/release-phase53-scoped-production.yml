@@ -121,27 +121,27 @@ jobs:
           URL="${{ steps.deploy.outputs.url }}"
           test -n "$URL"
 
-          vercel curl "$URL/api/health" --token="$VERCEL_TOKEN" -- \
+          vercel curl --token="$VERCEL_TOKEN" "$URL/api/health" -- \
             --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 3 \
             -D /tmp/candidate-health.headers -o /tmp/candidate-health.json
           node -e "const h=require('/tmp/candidate-health.json'); if(h.status!=='ok'||h.productCompletion!=='2.4-summary-file-image-delivery'||h.providers?.gemini?.configured!==true||h.providers?.gemini?.model!=='gemini-3.8-flash'||h.providers?.gemini?.economyModel!=='gemini-3.5-flash-lite') process.exit(1)"
           SOURCE_COMMIT="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-source-commit:/ {print $2}' /tmp/candidate-health.headers | tail -1 | tr -d '\r')"
           [ "$SOURCE_COMMIT" = "$GITHUB_SHA" ]
 
-          vercel curl "$URL/" --token="$VERCEL_TOKEN" -- \
+          vercel curl --token="$VERCEL_TOKEN" "$URL/" -- \
             --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
             -D /tmp/candidate-ui.headers -o /tmp/candidate-ui.html
           UI_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-ui-source-ref:/ {print $2}' /tmp/candidate-ui.headers | tail -1 | tr -d '\r')"
           [ "$UI_SOURCE_REF" = "$GITHUB_SHA" ]
 
-          vercel curl "$URL/src/research-safety-guard-v263.js" --token="$VERCEL_TOKEN" -- \
+          vercel curl --token="$VERCEL_TOKEN" "$URL/src/research-safety-guard-v263.js" -- \
             --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
             -D /tmp/candidate-asset.headers -o /tmp/candidate-safety.js
           ASSET_SOURCE_REF="$(awk 'BEGIN{IGNORECASE=1} /^x-ai-office-asset-source-ref:/ {print $2}' /tmp/candidate-asset.headers | tail -1 | tr -d '\r')"
           [ "$ASSET_SOURCE_REF" = "$GITHUB_SHA" ]
           grep -q "2.6.3-client-research-safety-guard" /tmp/candidate-safety.js
 
-          vercel curl "$URL/api/selftest" --token="$VERCEL_TOKEN" -- \
+          vercel curl --token="$VERCEL_TOKEN" "$URL/api/selftest" -- \
             --fail --silent --show-error --retry 4 --retry-all-errors --retry-delay 2 \
             --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
             -o /tmp/candidate-selftest.json
