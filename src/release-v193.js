@@ -18,6 +18,14 @@ const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
 const OFFICE_V2_TASKS = '2.10.0-chief-delegation-sync';
 const OFFICE_OS_SHELL = '1.0.0-p1';
 
+function suppressLegacyChrome() {
+  if (document.getElementById('ai-office-os-legacy-suppression')) return;
+  const style = document.createElement('style');
+  style.id = 'ai-office-os-legacy-suppression';
+  style.textContent = 'body.aiOfficeOS>#v19Dock,body.aiOfficeOS>#cred22Launcher{display:none!important}';
+  document.head.appendChild(style);
+}
+
 function syncReleaseLabels() {
   const officeOS = document.documentElement?.dataset?.aiOfficeOs === 'p1';
   document.title = officeOS ? 'A.I Văn phòng · Personal Office OS' : `A.I Văn phòng v${RELEASE} · Interaction ${INTERACTION_CONTROL}`;
@@ -65,6 +73,7 @@ async function bootKnowledgeRouter() {
 
     const officeOS = await import('./office-os/office-shell-v1.js?v=100');
     officeOS.installAIOfficeOSShell?.();
+    suppressLegacyChrome();
 
     weather.patchVoice?.();
     window.AIOfficeV22?.attachAfterV21?.();
