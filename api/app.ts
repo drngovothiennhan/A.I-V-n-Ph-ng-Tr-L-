@@ -44,14 +44,13 @@ export default async function handler(req, res) {
       .replace(/<script type="module" src="\/src\/office-v2\/ui-v2-shell\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/office-v2\/lean-dashboard-v72\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/office-v2\/mobile-shell-v73\.js(?:\?[^\"]*)?"><\/script>/g, '')
+      .replace(/<script type="module" src="\/src\/office-os\/office-shell-v1\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/bootstrap-v18\.js(?:\?[^\"]*)?"><\/script>/g, '')
       .replace(/<script type="module" src="\/src\/release-v193\.js(?:\?[^\"]*)?"><\/script>/g, '');
 
     const preloads = [
       '<link rel="modulepreload" href="/src/canonical-input-gate-v71.js?v=711">',
-      '<link rel="modulepreload" href="/src/office-v2/ui-v2-shell.js?v=3002">',
-      '<link rel="modulepreload" href="/src/office-v2/lean-dashboard-v72.js?v=3110">',
-      '<link rel="modulepreload" href="/src/office-v2/mobile-shell-v73.js?v=3200">'
+      '<link rel="modulepreload" href="/src/office-os/office-shell-v1.js?v=100">'
     ].join('');
     if (!html.includes('/src/canonical-input-gate-v71.js?v=711')) {
       html = html.includes('</head>') ? html.replace('</head>', `${preloads}</head>`) : `${preloads}${html}`;
@@ -59,11 +58,8 @@ export default async function handler(req, res) {
 
     const bootChain = `<script type="module">
 await import('/src/canonical-input-gate-v71.js?v=711');
-await import('/src/office-v2/ui-v2-shell.js?v=3002');
-await import('/src/office-v2/lean-dashboard-v72.js?v=3110');
-await import('/src/office-v2/mobile-shell-v73.js?v=3200');
 await import('/src/bootstrap-v18.js?v=193');
-await import('/src/release-v193.js?v=193');
+await import('/src/release-v193.js?v=194');
 </script>`;
     html = html.includes('</body>') ? html.replace('</body>', `${bootChain}</body>`) : `${html}${bootChain}`;
     return res.status(200).send(html);
