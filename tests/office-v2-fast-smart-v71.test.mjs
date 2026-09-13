@@ -33,22 +33,18 @@ test('direct command still executes as data task',()=>{
   assert.ok(canonical.artifactFormats.includes('xlsx'));
 });
 
-test('UI V2 is preloaded and canonical gate executes before mobile shell and legacy bootstrap',()=>{
-  assert.match(app,/rel="modulepreload" href="\/src\/office-v2\/ui-v2-shell\.js\?v=3002"/);
-  assert.match(app,/rel="modulepreload" href="\/src\/office-v2\/mobile-shell-v73\.js\?v=3200"/);
+test('Office OS is preloaded while canonical gate still executes before legacy runtime',()=>{
+  assert.match(app,/rel="modulepreload" href="\/src\/office-os\/office-shell-v1\.js\?v=100"/);
   const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
-  const ui=app.indexOf("await import('/src/office-v2/ui-v2-shell.js?v=3002')");
-  const lean=app.indexOf("await import('/src/office-v2/lean-dashboard-v72.js?v=3110')");
-  const mobileShell=app.indexOf("await import('/src/office-v2/mobile-shell-v73.js?v=3200')");
   const bootstrap=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const sync=app.indexOf("await import('/src/release-v193.js?v=193')");
-  assert.ok(gate>=0&&ui>gate&&lean>ui&&mobileShell>lean&&bootstrap>mobileShell&&sync>bootstrap,'canonical gate, lean UI and mobile shell must execute before legacy bootstrap/release');
-  assert.match(release,/ui-v2-shell\.js\?v=3002/);
-  assert.match(release,/mobile-shell-v73\.js\?v=3200/);
-  assert.doesNotMatch(release,/ui-v2-shell\.js\?v=3001/);
+  const sync=app.indexOf("await import('/src/release-v193.js?v=194')");
+  assert.ok(gate>=0&&bootstrap>gate&&sync>bootstrap,'canonical input must execute before stable runtime and Office OS release boot');
+  assert.match(release,/office-os\/office-shell-v1\.js\?v=100/);
+  assert.match(release,/installAIOfficeOSShell/);
+  assert.doesNotMatch(release,/installAIOfficeUIV2|installLeanDashboard|installMobileShell/);
 });
 
-test('V73 mobile shell is isolated, touch-sized and non-destructive',()=>{
+test('V73 mobile shell remains isolated as rollback-only legacy asset',()=>{
   assert.match(mobile,/MOBILE_SHELL_VERSION='3\.2\.0-focus-navigation'/);
   assert.match(mobile,/nav\.id='aiMobileBottomNav'/);
   assert.match(mobile,/env\(safe-area-inset-bottom\)/);
