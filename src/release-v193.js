@@ -17,6 +17,8 @@ const CREDENTIALS_RUNTIME = '2.3.0';
 const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
 const OFFICE_V2_TASKS = '2.10.0-chief-delegation-sync';
 const OFFICE_OS_SHELL = '1.0.0-p1';
+const CONNECTOR_REGISTRY = '1.0.0-p2';
+const CHIEF_ANSWER_ROUTER = '1.0.0-p3';
 
 function suppressLegacyChrome() {
   if (document.getElementById('ai-office-os-legacy-suppression')) return;
@@ -71,6 +73,11 @@ async function bootKnowledgeRouter() {
     const taskBridge = await import('./office-v2/task-runtime-bridge.js?v=2101');
     taskBridge.installOfficeV2TaskRuntimeBridge?.();
 
+    const connectors = await import('./office-os/connector-registry-v1.js?v=100');
+    connectors.installConnectorRegistry?.();
+    const answerRouter = await import('./office-os/chief-answer-router-v1.js?v=100');
+    answerRouter.installChiefAnswerRouter?.();
+
     const officeOS = await import('./office-os/office-shell-v1.js?v=100');
     officeOS.installAIOfficeOSShell?.();
     suppressLegacyChrome();
@@ -111,3 +118,5 @@ window.AIOfficeProductCompletionVersion = PRODUCT_COMPLETION;
 window.AIOfficeOfficeV2ChiefDelegationVersion = OFFICE_V2_DELEGATION;
 window.AIOfficeOfficeV2TaskBridgeVersion = OFFICE_V2_TASKS;
 window.AIOfficeOSShellVersion = OFFICE_OS_SHELL;
+window.AIOfficeConnectorRegistryVersion = CONNECTOR_REGISTRY;
+window.AIOfficeChiefAnswerRouterVersion = CHIEF_ANSWER_ROUTER;
