@@ -19,6 +19,7 @@ const OFFICE_V2_TASKS = '2.10.0-chief-delegation-sync';
 const OFFICE_V2_WORKSPACE = '2.10.0-chief-delegation-cards';
 const UI_V2 = '3.0.0-production-shell';
 const LEAN_UI = '3.1.1-active-only';
+const MOBILE_UI = '3.2.0-focus-navigation';
 
 function syncReleaseLabels() {
   const uiV2 = document.documentElement?.dataset?.aiOfficeUi === 'v2';
@@ -29,7 +30,7 @@ function syncReleaseLabels() {
   if (brandSmall) brandSmall.textContent = uiV2 ? 'AI Office Operating System' : `Autonomous Office Orchestrator · v${RELEASE}`;
   const footer = document.querySelector('.footer');
   if (footer) footer.textContent = uiV2
-    ? `AI OFFICE V2 · Chief of Staff ${OFFICE_V2_DELEGATION} · Tasks ${OFFICE_V2_TASKS} · UI ${UI_V2} · Lean ${LEAN_UI} · Production`
+    ? `AI OFFICE V2 · Chief of Staff ${OFFICE_V2_DELEGATION} · Tasks ${OFFICE_V2_TASKS} · UI ${UI_V2} · Lean ${LEAN_UI} · Mobile ${MOBILE_UI} · Production`
     : `A.I VĂN PHÒNG · ${RELEASE} · AI CORE ${AI_CORE} · CONTEXT ${CONTEXT_MANAGER} · OPS ${OPERATIONS_CENTER} · CANCEL ${GLOBAL_CANCEL} · AUTH ${AUTHORIZATION} · SOURCE ROUTER ${KNOWLEDGE_ROUTER} · INTERNAL ${INTERNAL_SOURCE_CONTROL} · MULTISOURCE ${MULTISOURCE_ORCHESTRATOR} · SAFETY ${RESEARCH_SAFETY} · INTERACTION ${INTERACTION_CONTROL} · VOICE ${VOICE_RENDER_BRIDGE} · TURN ${VOICE_TURN_COORDINATOR} · RUNTIME ${CREDENTIALS_RUNTIME} · PRODUCT ${PRODUCT_COMPLETION}`;
   const status = document.querySelector('#v19Status');
   if (status && uiV2) status.textContent = 'Chief of Staff · Gemini-first · Voice/Intent/Action ON';
@@ -72,6 +73,8 @@ async function bootKnowledgeRouter() {
     uiV2.installAIOfficeUIV2?.();
     const leanDashboard = await import('./office-v2/lean-dashboard-v72.js?v=3110');
     leanDashboard.installLeanDashboard?.();
+    const mobileShell = await import('./office-v2/mobile-shell-v73.js?v=3200');
+    mobileShell.installMobileShell?.();
 
     weather.patchVoice?.();
     window.AIOfficeV22?.attachAfterV21?.();
@@ -111,3 +114,4 @@ window.AIOfficeOfficeV2TaskBridgeVersion = OFFICE_V2_TASKS;
 window.AIOfficeOfficeV2TaskWorkspaceVersion = OFFICE_V2_WORKSPACE;
 window.AIOfficeUIV2Version = UI_V2;
 window.AIOfficeLeanDashboardVersion = LEAN_UI;
+window.AIOfficeMobileShellVersion = MOBILE_UI;
