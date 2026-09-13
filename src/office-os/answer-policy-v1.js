@@ -3,7 +3,7 @@ export const ANSWER_MODES=Object.freeze({DIRECT:'DIRECT',GROUNDED:'GROUNDED',CUR
 
 const INTERNAL=/\b(tai lieu noi bo|tai lieu cua co quan|ho so noi bo|drive noi bo|google drive|trong drive|kho kien thuc|du lieu co quan|du lieu to chuc)\b/;
 const EXPLICIT_SEARCH=/\b(tra cuu|tim nguon|tim tren web|tim tren internet|search|nghien cuu|kiem chung|doi chieu nguon|nguon chinh thuc|dan nguon|citation|tham khao)\b/;
-const CURRENT=/\b(hom nay|bay gio|hien nay|moi nhat|gan day|cap nhat|vua moi|tuan nay|thang nay|nam nay|gia hien tai|lich hom nay|thoi tiet|ty gia|tin moi|latest|current|today|recent)\b/;
+const CURRENT=/\b(hom nay|bay gio|hien nay|hien hanh|dang co hieu luc|moi nhat|gan day|cap nhat|vua moi|tuan nay|thang nay|nam nay|gia hien tai|lich hom nay|thoi tiet|ty gia|tin moi|latest|current|today|recent)\b/;
 const MEDICAL=/\b(y khoa|y hoc|benh|chan doan|dieu tri|thuoc|lieu|tac dung phu|chong chi dinh|xet nghiem|lam sang|benh nhan|suc khoe|duoc|duoc ly|phau thuat|noi tiet|tim mach|than kinh|yhct|y hoc co truyen)\b/;
 const LEGAL=/\b(phap luat|nghi dinh|thong tu|luat |dieu luat|quy dinh|van ban quy pham|xu phat|hanh chinh|phap ly|hieu luc|cong bao)\b/;
 const FINANCIAL=/\b(dau tu|chung khoan|co phieu|trai phieu|lai suat|thue |bao hiem|tin dung|tai chinh)\b/;
