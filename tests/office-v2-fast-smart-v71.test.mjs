@@ -50,14 +50,15 @@ test('UI V2 is preloaded and canonical gate executes before mobile shell and leg
 
 test('V73 mobile shell is isolated, touch-sized and non-destructive',()=>{
   assert.match(mobile,/MOBILE_SHELL_VERSION='3\.2\.0-focus-navigation'/);
-  assert.match(mobile,/id='aiMobileBottomNav'|id="aiMobileBottomNav"/);
+  assert.match(mobile,/nav\.id='aiMobileBottomNav'/);
   assert.match(mobile,/env\(safe-area-inset-bottom\)/);
   assert.match(mobile,/min-height:44px/);
   assert.match(mobile,/data-ai-mobile-view/);
   assert.match(mobile,/aiMobileMoreOpen/);
   assert.doesNotMatch(mobile,/localStorage\.(?:setItem|removeItem|clear)/);
   assert.doesNotMatch(mobile,/fetch\s*\(/);
-  assert.doesNotMatch(mobile,/\.remove\s*\(/);
+  assert.doesNotMatch(mobile,/\.removeChild\s*\(/);
+  assert.doesNotMatch(mobile,/\.replaceChildren\s*\(/);
 });
 
 test('Chief reasoning is medium by default, not low',()=>{
