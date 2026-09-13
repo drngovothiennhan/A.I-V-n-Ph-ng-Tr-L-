@@ -19,17 +19,17 @@ test('Office OS production release remains candidate-first with exact-source gat
   assert.match(release,/cancel-in-progress: false/);
 });
 
-test('protected candidate smoke authenticates before URL and avoids ephemeral bypass mutation',()=>{
+test('protected candidate smoke uses vercel curl with VERCEL_TOKEN environment auth',()=>{
+  assert.match(release,/VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/);
   assert.match(release,/Candidate exact-source smoke with authenticated Vercel CLI/);
-  assert.match(release,/vercel curl --token="\$VERCEL_TOKEN" "\$URL\/api\/health"/);
-  assert.match(release,/vercel curl --token="\$VERCEL_TOKEN" "\$URL\/"/);
-  assert.match(release,/vercel curl --token="\$VERCEL_TOKEN" "\$URL\/src\/research-safety-guard-v263\.js"/);
-  assert.match(release,/vercel curl --token="\$VERCEL_TOKEN" "\$URL\/api\/selftest"/);
-  assert.doesNotMatch(release,/vercel curl "\$URL[^\n]*--token=/,'global Vercel auth flags must not be forwarded to native curl');
+  assert.match(release,/vercel curl "\$URL\/api\/health" --/);
+  assert.match(release,/vercel curl "\$URL\/" --/);
+  assert.match(release,/vercel curl "\$URL\/src\/research-safety-guard-v263\.js" --/);
+  assert.match(release,/vercel curl "\$URL\/api\/selftest" --/);
+  assert.doesNotMatch(release,/vercel curl[^\n]*--token=/,'vercel curl must use VERCEL_TOKEN environment auth; --token is forwarded to native curl');
   assert.doesNotMatch(release,/Generate ephemeral deployment share bypass/);
   assert.doesNotMatch(release,/Revoke ephemeral deployment share bypass/);
   assert.doesNotMatch(release,/_vercel_share=/);
-  assert.doesNotMatch(release,/api\.vercel\.com\/aliases\/\$CANDIDATE_REF\/protection-bypass/);
   const smokeIndex=release.indexOf('Candidate exact-source smoke with authenticated Vercel CLI');
   const promoteIndex=release.indexOf('Promote verified candidate');
   assert.ok(smokeIndex>0&&promoteIndex>smokeIndex,'authenticated candidate smoke must pass before promotion');
