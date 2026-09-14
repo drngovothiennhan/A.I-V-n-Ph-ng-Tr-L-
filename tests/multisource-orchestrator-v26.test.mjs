@@ -58,7 +58,7 @@ const controlBoot=release.indexOf('installInternalSourceControl');
 const multiBoot=release.indexOf('installMultiSourceOrchestrator');
 assert.ok(coreBoot>=0&&controlBoot>coreBoot&&multiBoot>controlBoot,'canonical intent -> source consent UI -> multisource order must be preserved');
 
-assert.match(researchEntry,/import v31 from '\.\/research-v31\.js'/,'public research endpoint must route through v3.1 entry');
+assert.match(researchEntry,/import v32 from '\.\/research-v32\.js'/,'public research endpoint must route through v3.2 entry');
 const geminiCall=research.indexOf('const grounded=await geminiGrounded');
 const fallbackCall=research.indexOf('const fallback=await publicExtractive');
 assert.ok(geminiCall>=0&&fallbackCall>geminiCall,'Gemini must be attempted before public fallback');
@@ -67,4 +67,4 @@ assert.match(research,/const\s+driveContext\s*=\s*useInternal\s*\?\s*suppliedCon
 assert.match(research,/INTERNAL_CONTEXT_IGNORED_WITHOUT_OPT_IN/,'server must audit rejected internal context');
 assert.match(research,/tools:\[\{google_search:\{\}\}\]/,'Gemini must use Google Search grounding');
 
-console.log('multisource-orchestrator-v31: Gemini-first + canonical source consent + opt-in internal sources PASS');
+console.log('multisource-orchestrator-v32: Gemini-first + canonical source consent + opt-in internal sources PASS');
