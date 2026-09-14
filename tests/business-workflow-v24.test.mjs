@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { classifyInteractionV22 } from '../src/interaction-policy-v22.js';
 import { classifySourcePolicy } from '../src/source-policy-v20.js';
+
+const productCompletion=fs.readFileSync(new URL('../src/product-completion-v24.js',import.meta.url),'utf8');
 
 function policyFor(text, context = {}) {
   const interaction = classifyInteractionV22(text, context);
@@ -93,4 +96,9 @@ function policyFor(text, context = {}) {
   assert.equal(interaction.needsApproval, true);
 }
 
-console.log('business-workflow-v27: office intent/source/risk + internal opt-in scenarios PASS');
+assert.match(productCompletion,/artifactOptOut\(task\)/,'product completion must inspect explicit no-file intent');
+assert.match(productCompletion,/artifactSuppressed:true/,'no-file task must persist an explicit suppressed-artifact state');
+assert.match(productCompletion,/Không tạo file theo yêu cầu/,'normal UI must report that file creation was suppressed');
+assert.match(productCompletion,/task\.artifactFormats=\[\]/,'no-file task must clear inherited/default artifact formats');
+
+console.log('business-workflow-v27: office intent/source/risk + internal opt-in + no-file delivery PASS');
