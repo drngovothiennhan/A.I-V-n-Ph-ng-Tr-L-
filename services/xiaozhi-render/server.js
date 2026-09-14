@@ -9,8 +9,9 @@ const UPSTREAM_TOKEN = String(process.env.XIAOZHI_UPSTREAM_TOKEN || '');
 const PROTOCOL_VERSION = String(process.env.XIAOZHI_PROTOCOL_VERSION || '1');
 const CONFIGURED_CLIENT_ID = String(process.env.XIAOZHI_CLIENT_ID || '');
 const CONFIGURED_DEVICE_ID = String(process.env.XIAOZHI_DEVICE_ID || '');
-const RELEASE = 'xiaozhi-render-gateway-1.2.0';
+const RELEASE = 'xiaozhi-render-gateway-1.2.1';
 const TRUSTED_ORIGINS = new Set([
+  'https://ai-office-edge-neon-cutover.onrender.com',
   'https://ai-van-phong-tro-ly.vercel.app',
   'https://ai-van-phong-tro-ly-hiu-yhct.vercel.app'
 ]);
