@@ -50,7 +50,7 @@ test('P4 production entry boots canonical runtime before mounting Office OS',()=
   const knowledge=entry.indexOf("../knowledge-router-v20.js?v=271");
   const interaction=entry.indexOf("../interaction-runtime-v23.js?v=230");
   const canonical=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
-  const ready=entry.indexOf('assertCanonicalRuntimeReady()');
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
   const shellMount=entry.indexOf("./office-shell-v1.js?v=102");
   assert.ok(bootstrap>=0&&knowledge>bootstrap&&interaction>knowledge&&canonical>interaction&&ready>canonical&&shellMount>ready,'runtime must be ready before the user shell is mounted');
   assert.match(entry,/installCanonicalResultContract\(\)/);
