@@ -44,7 +44,7 @@ test('lean dashboard remains safe as rollback-only asset without mutating source
 test('production release mounts Office OS before task runtime support and never reapplies lean UI',()=>{
   assert.match(release,/const OFFICE_OS_SHELL = '1\.0\.0-p1'/);
   const officeOS=release.indexOf("office-os/office-shell-v1.js?v=101");
-  const taskBridge=release.indexOf("task-runtime-bridge.js?v=2101");
+  const taskBridge=release.indexOf("task-runtime-bridge.js?v=2102");
   assert.ok(officeOS>=0&&taskBridge>officeOS);
   assert.match(release,/installAIOfficeOSShell/);
   assert.match(release,/installOfficeV2TaskRuntimeBridge/);
