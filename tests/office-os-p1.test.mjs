@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const shell=fs.readFileSync(new URL('../src/office-os/office-shell-v1.js',import.meta.url),'utf8');
 const release=fs.readFileSync(new URL('../src/release-v193.js',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../api/app.ts',import.meta.url),'utf8');
+const entryUrl=new URL('../src/office-os/production-entry-v1.js',import.meta.url);
+const entry=fs.readFileSync(entryUrl,'utf8');
 const scope=fs.readFileSync(new URL('../docs/AI_OFFICE_OS_SCOPE_LOCK.md',import.meta.url),'utf8');
 
 test('P1 exposes only the five approved user surfaces',()=>{
@@ -21,33 +25,44 @@ test('social connectors are explicitly disabled in runtime scope',()=>{
   assert.match(scope,/Do not implement Facebook or Zalo at any phase\./);
 });
 
-test('release boot no longer installs legacy UI V2, lean or mobile shells',()=>{
+test('rollback release no longer installs legacy UI V2, lean or mobile shells',()=>{
   assert.doesNotMatch(release,/installAIOfficeUIV2/);
   assert.doesNotMatch(release,/installLeanDashboard/);
   assert.doesNotMatch(release,/installMobileShell/);
   assert.match(release,/office-os\/office-shell-v1\.js\?v=101/);
   assert.match(release,/installAIOfficeOSShell/);
-  const shellIndex=release.indexOf("office-os/office-shell-v1.js?v=101");
-  const aiCoreIndex=release.indexOf('ai-orchestrator-core-v32.js');
-  const credentialsIndex=release.indexOf('credential-setup-v22.js');
-  assert.ok(shellIndex>=0&&aiCoreIndex>shellIndex&&credentialsIndex>shellIndex,'Office OS must boot before legacy runtime modules');
 });
 
-test('Vercel renders Office OS first and never exposes legacy dashboard during boot',()=>{
-  assert.match(app,/#app\{display:none!important\}/);
-  assert.match(app,/id=\"aiOfficeOSBoot\"/);
-  assert.match(app,/office-shell-v1\.js\?v=101/);
-  assert.match(app,/canonical-input-gate-v71\.js\?v=711/);
-  assert.match(app,/bootstrap-v18\.js\?v=193/);
-  assert.match(app,/release-v193\.js\?v=195/);
-  assert.match(app,/sessionStorage\.setItem\('ai-office-credentials-seen-v230','1'\)/);
-  const boot=app.split('const bootChain = ')[1]||'';
-  const shellIndex=boot.indexOf('office-shell-v1.js?v=101');
-  const canonicalIndex=boot.indexOf('canonical-input-gate-v71.js?v=711');
-  const runtimeIndex=boot.indexOf('bootstrap-v18.js?v=193');
-  const releaseIndex=boot.indexOf('release-v193.js?v=195');
-  assert.ok(shellIndex>=0&&canonicalIndex>shellIndex&&runtimeIndex>canonicalIndex&&releaseIndex>runtimeIndex,'Office OS must install before canonical/runtime/release chain');
-  assert.doesNotMatch(boot,/ui-v2-shell/);
-  assert.doesNotMatch(boot,/lean-dashboard-v72/);
-  assert.doesNotMatch(boot,/mobile-shell-v73/);
+test('P4 production root is a clean Office OS shell with one entrypoint',()=>{
+  assert.match(app,/id="aiOfficeOSBoot"/);
+  assert.match(app,/office-os\/production-entry-v1\.js\?v=100/);
+  assert.match(app,/x-ai-office-production-entry/);
+  assert.doesNotMatch(app,/raw\.githubusercontent\.com/);
+  assert.doesNotMatch(app,/index\.html/);
+  assert.doesNotMatch(app,/release-v193\.js/);
+  assert.doesNotMatch(app,/canonical-input-gate-v71\.js/);
+  assert.doesNotMatch(app,/bootstrap-v18\.js/);
+  assert.doesNotMatch(app,/ui-v2-shell|lean-dashboard-v72|mobile-shell-v73/);
+});
+
+test('P4 production entry boots canonical runtime before mounting Office OS',()=>{
+  const bootstrap=entry.indexOf("../bootstrap-v18.js");
+  const knowledge=entry.indexOf("../knowledge-router-v20.js?v=271");
+  const interaction=entry.indexOf("../interaction-runtime-v23.js?v=230");
+  const canonical=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
+  const shellMount=entry.indexOf("./office-shell-v1.js?v=102");
+  assert.ok(bootstrap>=0&&knowledge>bootstrap&&interaction>knowledge&&canonical>interaction&&ready>canonical&&shellMount>ready,'runtime must be ready before the user shell is mounted');
+  assert.match(entry,/installCanonicalResultContract\(\)/);
+  assert.match(entry,/normalizeCanonicalResult/);
+  assert.match(entry,/AIOfficeProductionRuntime/);
+  assert.match(entry,/ai-office-production-ready/);
+  assert.doesNotMatch(entry,/runtime-ready-hotfix/);
+  assert.doesNotMatch(entry,/release-v193\.js/);
+  assert.doesNotMatch(entry,/ui-v2-shell|lean-dashboard-v72|mobile-shell-v73/);
+});
+
+test('P4 production entry is valid JavaScript',()=>{
+  const checked=spawnSync(process.execPath,['--check',fileURLToPath(entryUrl)],{encoding:'utf8'});
+  assert.equal(checked.status,0,checked.stderr||checked.stdout);
 });

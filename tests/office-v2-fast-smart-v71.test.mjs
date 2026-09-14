@@ -5,6 +5,7 @@ import { classifyInteractionV22 } from '../src/interaction-policy-v22.js';
 import { classifyCanonicalIntent } from '../src/ai-orchestrator-core-v32.js';
 
 const app=fs.readFileSync(new URL('../api/app.ts',import.meta.url),'utf8');
+const entry=fs.readFileSync(new URL('../src/office-os/production-entry-v1.js',import.meta.url),'utf8');
 const proxy=fs.readFileSync(new URL('../api/proxy.ts',import.meta.url),'utf8');
 const release=fs.readFileSync(new URL('../src/release-v193.js',import.meta.url),'utf8');
 const mobile=fs.readFileSync(new URL('../src/office-v2/mobile-shell-v73.js',import.meta.url),'utf8');
@@ -33,14 +34,16 @@ test('direct command still executes as data task',()=>{
   assert.ok(canonical.artifactFormats.includes('xlsx'));
 });
 
-test('Office OS is first-render primary before canonical and legacy runtime support',()=>{
-  assert.match(app,/rel="modulepreload" href="\/src\/office-os\/office-shell-v1\.js\?v=101"/);
-  const office=app.indexOf("await import('/src/office-os/office-shell-v1.js?v=101')");
-  const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
-  const bootstrap=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const sync=app.indexOf("await import('/src/release-v193.js?v=195')");
-  assert.ok(office>=0&&gate>office&&bootstrap>gate&&sync>bootstrap,'Office OS must render before canonical and legacy runtime support');
-  assert.match(app,/#app\{display:none!important\}/);
+test('Office OS production root uses one entry and mounts only after canonical runtime readiness',()=>{
+  assert.match(app,/rel="modulepreload" href="\/src\/office-os\/production-entry-v1\.js\?v=100"/);
+  assert.match(app,/script type="module" src="\/src\/office-os\/production-entry-v1\.js\?v=100"/);
+  assert.doesNotMatch(app,/office-shell-v1\.js|canonical-input-gate-v71\.js|bootstrap-v18\.js|release-v193\.js/);
+  const bootstrap=entry.indexOf("../bootstrap-v18.js");
+  const gate=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
+  const office=entry.indexOf("./office-shell-v1.js?v=102");
+  assert.ok(bootstrap>=0&&gate>bootstrap&&ready>gate&&office>ready,'runtime and canonical gate must be ready before Office OS mounts');
+  assert.doesNotMatch(entry,/runtime-ready-hotfix|release-v193\.js|ui-v2-shell|lean-dashboard-v72|mobile-shell-v73/);
   assert.match(release,/office-os\/office-shell-v1\.js\?v=101/);
   assert.match(release,/installAIOfficeOSShell/);
   assert.doesNotMatch(release,/installAIOfficeUIV2|installLeanDashboard|installMobileShell/);

@@ -5,6 +5,7 @@ import { isQuotedMetaQuestion, CANONICAL_INPUT_GATE_VERSION } from '../src/canon
 import { LEAN_DASHBOARD_VERSION } from '../src/office-v2/lean-dashboard-v72.js';
 
 const app=fs.readFileSync(new URL('../api/app.ts',import.meta.url),'utf8');
+const entry=fs.readFileSync(new URL('../src/office-os/production-entry-v1.js',import.meta.url),'utf8');
 const lean=fs.readFileSync(new URL('../src/office-v2/lean-dashboard-v72.js',import.meta.url),'utf8');
 const release=fs.readFileSync(new URL('../src/release-v193.js',import.meta.url),'utf8');
 
@@ -14,15 +15,16 @@ test('quoted meta questions are analysis only, never direct task instructions',(
   assert.equal(isQuotedMetaQuestion('Hãy so sánh hai bảng dữ liệu và xuất Excel'),false);
 });
 
-test('Office OS renders before canonical input and stable runtime support',()=>{
-  const office=app.indexOf("await import('/src/office-os/office-shell-v1.js?v=101')");
-  const gate=app.indexOf("await import('/src/canonical-input-gate-v71.js?v=711')");
-  const legacy=app.indexOf("await import('/src/bootstrap-v18.js?v=193')");
-  const releaseSync=app.indexOf("await import('/src/release-v193.js?v=195')");
-  assert.ok(office>=0&&gate>office&&legacy>gate&&releaseSync>legacy);
-  assert.match(app,/Mặc định: trả lời ngắn gọn\. Chỉ tạo nhiệm vụ hoặc file khi bạn yêu cầu rõ\./);
-  assert.match(app,/office-os\/office-shell-v1\.js\?v=101/);
-  assert.match(app,/#app\{display:none!important\}/);
+test('Office OS stays hidden until canonical input and stable runtime support are ready',()=>{
+  assert.match(app,/office-os\/production-entry-v1\.js\?v=100/);
+  assert.doesNotMatch(app,/office-shell-v1\.js|canonical-input-gate-v71\.js|bootstrap-v18\.js|release-v193\.js/);
+  const bootstrap=entry.indexOf("../bootstrap-v18.js");
+  const runtime=entry.indexOf("../interaction-runtime-v23.js?v=230");
+  const gate=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
+  const office=entry.indexOf("./office-shell-v1.js?v=102");
+  assert.ok(bootstrap>=0&&runtime>bootstrap&&gate>runtime&&ready>gate&&office>ready);
+  assert.match(app,/Đang mở văn phòng của bạn/);
 });
 
 test('lean dashboard remains safe as rollback-only asset without mutating source data',()=>{
@@ -41,7 +43,7 @@ test('lean dashboard remains safe as rollback-only asset without mutating source
   assert.doesNotMatch(lean,/\.remove\s*\(/);
 });
 
-test('production release mounts Office OS before task runtime support and never reapplies lean UI',()=>{
+test('rollback release retains task runtime support and never reapplies lean UI',()=>{
   assert.match(release,/const OFFICE_OS_SHELL = '1\.0\.0-p1'/);
   const officeOS=release.indexOf("office-os/office-shell-v1.js?v=101");
   const taskBridge=release.indexOf("task-runtime-bridge.js?v=2102");
