@@ -17,6 +17,7 @@ const CREDENTIALS_RUNTIME = '2.3.0';
 const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
 const OFFICE_V2_TASKS = '2.10.1-chief-plan-sync';
 const OFFICE_OS_SHELL = '1.0.0-p1';
+const OFFICE_OS_RUNTIME_HOTFIX = '1.0.0';
 const CONNECTOR_REGISTRY = '1.0.0-p2';
 const CHIEF_ANSWER_ROUTER = '1.0.1-p3-context';
 
@@ -48,6 +49,13 @@ async function bootKnowledgeRouter() {
     officeOS.installAIOfficeOSShell?.();
     suppressLegacyChrome();
     try { sessionStorage.setItem('ai-office-credentials-seen-v230','1'); } catch {}
+
+    // Office OS must never depend on a competing entrypoint winning a startup race.
+    // Bootstrap the stable V19 core here before any router waits for it.
+    await import('./bootstrap-v18.js');
+    const canonicalGate = await import('./canonical-input-gate-v71.js?v=711');
+    canonicalGate.installCanonicalInputGate?.();
+    await import('./office-os/runtime-ready-hotfix-v1.js?v=100');
 
     const aiCore = await import('./ai-orchestrator-core-v32.js?v=325');
     aiCore.installAICoreOrchestrator?.();
@@ -119,5 +127,6 @@ window.AIOfficeProductCompletionVersion = PRODUCT_COMPLETION;
 window.AIOfficeOfficeV2ChiefDelegationVersion = OFFICE_V2_DELEGATION;
 window.AIOfficeOfficeV2TaskBridgeVersion = OFFICE_V2_TASKS;
 window.AIOfficeOSShellVersion = OFFICE_OS_SHELL;
+window.AIOfficeOfficeOSRuntimeHotfixVersion = OFFICE_OS_RUNTIME_HOTFIX;
 window.AIOfficeConnectorRegistryVersion = CONNECTOR_REGISTRY;
 window.AIOfficeChiefAnswerRouterVersion = CHIEF_ANSWER_ROUTER;
