@@ -6,7 +6,7 @@ import { normalizeLegacyTask, syncLegacyTaskCollection, OFFICE_V2_TASK_BRIDGE_VE
 
 function fakeStorage(){const rows=new Map();return {getItem:key=>rows.has(key)?rows.get(key):null,setItem:(key,value)=>rows.set(key,String(value)),removeItem:key=>rows.delete(key)}}
 
-test('legacy task normalization maps lifecycle, chief delegation and excludes output payloads',()=>{
+test('legacy task normalization maps lifecycle, chief plan and excludes output payloads',()=>{
   const legacy={id:'task-1',status:'awaiting_approval',createdAt:'2026-09-12T08:00:00.000Z',updatedAt:'2026-09-12T08:01:00.000Z',title:'Báo cáo tháng',originalMessage:'Soạn báo cáo tháng',progress:80,outputDraft:'NỘI DUNG DÀI KHÔNG ĐƯỢC MIRROR',intentV32:{type:'DOCUMENT_TASK',risk:'high',needsApproval:true,artifactFormats:['docx'],source:{mode:'task-context',preferredProvider:'orchestrator',externalAllowed:false}},qa:{score:96},orchestrationId:'orch-1'};
   const task=normalizeLegacyTask(legacy);
   assert.equal(task.status,TASK_STATES.WAITING_APPROVAL);
@@ -17,12 +17,17 @@ test('legacy task normalization maps lifecycle, chief delegation and excludes ou
   assert.equal(task.metadata.qaScore,96);
   assert.equal('outputDraft' in task,false);
   assert.equal(task.metadata.bridge,'legacy-v11');
-  assert.equal(OFFICE_V2_TASK_BRIDGE_VERSION,'2.10.0-chief-delegation-sync');
+  assert.equal(OFFICE_V2_TASK_BRIDGE_VERSION,'2.10.1-chief-plan-sync');
   assert.equal(task.metadata.delegationVersion,'2.10.0-chief-delegation');
   assert.equal(task.metadata.delegation.mode,'TASK');
   assert.deepEqual(task.metadata.delegation.agents,['document','qa']);
   assert.equal(task.metadata.delegation.approvalRequired,true);
   assert.equal(task.metadata.delegation.verify,true);
+  assert.equal(task.plan.intent,'DOCUMENT_TASK');
+  assert.deepEqual(task.plan.agents,['document','qa']);
+  assert.deepEqual(task.plan.artifacts,['docx']);
+  assert.equal(task.plan.verify,true);
+  assert.equal(task.plan.sideEffectAllowed,false);
 });
 
 test('legacy collection sync is idempotent and advances revision on lifecycle change',async()=>{
@@ -31,7 +36,7 @@ test('legacy collection sync is idempotent and advances revision on lifecycle ch
   const first=await syncLegacyTaskCollection([legacy],repository);
   assert.equal(first.version,OFFICE_V2_TASK_BRIDGE_VERSION);
   assert.equal(first.changed,1);assert.equal(first.active,1);
-  const running=await repository.get('task-2');assert.equal(running.status,TASK_STATES.RUNNING);assert.equal(running.revision,1);assert.deepEqual(running.metadata.delegation.agents,['data','qa']);
+  const running=await repository.get('task-2');assert.equal(running.status,TASK_STATES.RUNNING);assert.equal(running.revision,1);assert.deepEqual(running.metadata.delegation.agents,['data','qa']);assert.deepEqual(running.plan.agents,['data','qa']);assert.equal(running.plan.verify,true);
 
   const second=await syncLegacyTaskCollection([legacy],repository);
   assert.equal(second.changed,0);
@@ -42,6 +47,7 @@ test('legacy collection sync is idempotent and advances revision on lifecycle ch
   assert.equal(third.changed,1);assert.equal(third.active,0);
   const completed=await repository.get('task-2');assert.equal(completed.status,TASK_STATES.COMPLETED);assert.equal(completed.revision,2);
   assert.equal(completed.history.at(-1).event,'legacy-sync');
+  assert.equal(completed.plan.intent,'DATA_TASK');
 });
 
 test('unknown legacy state fails safe into planning instead of claiming completion',()=>{
