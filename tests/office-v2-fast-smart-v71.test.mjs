@@ -40,7 +40,7 @@ test('Office OS production root uses one entry and mounts only after canonical r
   assert.doesNotMatch(app,/office-shell-v1\.js|canonical-input-gate-v71\.js|bootstrap-v18\.js|release-v193\.js/);
   const bootstrap=entry.indexOf("../bootstrap-v18.js");
   const gate=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
-  const ready=entry.indexOf('assertCanonicalRuntimeReady()');
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
   const office=entry.indexOf("./office-shell-v1.js?v=102");
   assert.ok(bootstrap>=0&&gate>bootstrap&&ready>gate&&office>ready,'runtime and canonical gate must be ready before Office OS mounts');
   assert.doesNotMatch(entry,/runtime-ready-hotfix|release-v193\.js|ui-v2-shell|lean-dashboard-v72|mobile-shell-v73/);
