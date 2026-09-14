@@ -4,6 +4,8 @@
   "version": "1.9.3",
   "type": "module",
   "dependencies": {
+    "@ai-sdk/google": "4.0.69",
+    "ai": "7.0.99",
     "ws": "^8.18.0"
   }
 }
