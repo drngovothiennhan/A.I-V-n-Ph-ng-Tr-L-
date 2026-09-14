@@ -1,8 +1,8 @@
 const RELEASE = '1.9.3';
-const AI_CORE = '3.2.3';
+const AI_CORE = '3.2.4';
 const GLOBAL_CANCEL = '3.3.0';
 const AUTHORIZATION = '3.4.0';
-const CONTEXT_MANAGER = '3.5.0';
+const CONTEXT_MANAGER = '3.5.1';
 const OPERATIONS_CENTER = '3.6.0';
 const KNOWLEDGE_ROUTER = '2.7.1';
 const INTERACTION_CONTROL = '2.3';
@@ -15,10 +15,10 @@ const RESEARCH_SAFETY = '2.6.3';
 const PRODUCT_COMPLETION = '2.4';
 const CREDENTIALS_RUNTIME = '2.3.0';
 const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
-const OFFICE_V2_TASKS = '2.10.0-chief-delegation-sync';
+const OFFICE_V2_TASKS = '2.10.1-chief-plan-sync';
 const OFFICE_OS_SHELL = '1.0.0-p1';
 const CONNECTOR_REGISTRY = '1.0.0-p2';
-const CHIEF_ANSWER_ROUTER = '1.0.0-p3';
+const CHIEF_ANSWER_ROUTER = '1.0.1-p3-context';
 
 function suppressLegacyChrome() {
   if (document.getElementById('ai-office-os-legacy-suppression')) return;
@@ -49,7 +49,7 @@ async function bootKnowledgeRouter() {
     suppressLegacyChrome();
     try { sessionStorage.setItem('ai-office-credentials-seen-v230','1'); } catch {}
 
-    const aiCore = await import('./ai-orchestrator-core-v32.js?v=323');
+    const aiCore = await import('./ai-orchestrator-core-v32.js?v=324');
     aiCore.installAICoreOrchestrator?.();
 
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
@@ -75,12 +75,12 @@ async function bootKnowledgeRouter() {
     await import('./voice-render-bridge-v23.js?v=230');
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
 
-    const taskBridge = await import('./office-v2/task-runtime-bridge.js?v=2101');
+    const taskBridge = await import('./office-v2/task-runtime-bridge.js?v=2102');
     taskBridge.installOfficeV2TaskRuntimeBridge?.();
 
     const connectors = await import('./office-os/connector-registry-v1.js?v=100');
     connectors.installConnectorRegistry?.();
-    const answerRouter = await import('./office-os/chief-answer-router-v1.js?v=100');
+    const answerRouter = await import('./office-os/chief-answer-router-v1.js?v=101');
     answerRouter.installChiefAnswerRouter?.();
 
     weather.patchVoice?.();
