@@ -8,6 +8,7 @@ const researchGateway=await readFile(new URL('../api/research-gateway.ts',import
 const v29=await readFile(new URL('../api/research-v29.js',import.meta.url),'utf8');
 const v30=await readFile(new URL('../api/research-v30.js',import.meta.url),'utf8');
 const v31=await readFile(new URL('../api/research-v31.js',import.meta.url),'utf8');
+const v32=await readFile(new URL('../api/research-v32.js',import.meta.url),'utf8');
 
 function publicDestination(source){
   const rewrite=(vercel.rewrites||[]).find(row=>row?.source===source);
@@ -27,8 +28,9 @@ assert.doesNotMatch(researchGateway,/from ['"]\.\/research(?:\.ts)?['"]/,'gatewa
 assert.match(researchGateway,/function sameOriginRuntimeRequest\(req\)/,'research gateway must enforce same-origin request metadata');
 assert.match(researchGateway,/AI_RUNTIME_SAME_ORIGIN_REQUIRED/,'research gateway must reject cross-site/direct-browser runtime calls before provider access');
 assert.match(researchGateway,/providerCallMade:\s*false/,'rejected research requests must explicitly confirm no provider call was made');
-assert.match(researchEntry,/import v31 from '\.\/research-v31\.js'/,'stable /api/research entrypoint must use research-v31');
-assert.match(researchEntry,/export default v31/,'stable /api/research entrypoint must export v31');
+assert.match(researchEntry,/import v32 from '\.\/research-v32\.js'/,'stable /api/research entrypoint must use research-v32');
+assert.match(researchEntry,/export default v32/,'stable /api/research entrypoint must export v32');
+assert.match(v32,/import v31 from '\.\/research-v31\.js'/,'v32 must preserve hardened v31 delegation beneath fast-QA routing');
 
 const retiredVersions=['v28','v29','v30','v31'];
 for(const version of retiredVersions){
@@ -54,4 +56,4 @@ assert.equal(response.body?.error,'LEGACY_RESEARCH_ROUTE_RETIRED');
 assert.equal(response.body?.canonicalEndpoint,'/api/research');
 assert.equal(response.body?.providerCallMade,false,'retired route must never invoke provider work');
 
-console.log('vercel-research-route-v56: secure /api/research uses runtime-safe gateway and legacy routes fail closed PASS');
+console.log('vercel-research-route-v32: secure /api/research uses v32 wrapper, runtime-safe gateway, and legacy routes fail closed PASS');
