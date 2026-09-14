@@ -58,7 +58,8 @@ test('release renders Office OS shell before loading P2 connector and hardened P
   const connectors=release.indexOf("office-os/connector-registry-v1.js?v=100");
   const answers=release.indexOf("office-os/chief-answer-router-v1.js?v=101");
   assert.ok(shell>=0&&connectors>shell&&answers>connectors);
-  assert.match(release,/ai-orchestrator-core-v32\.js\?v=324/);
+  assert.match(release,/ai-orchestrator-core-v32\.js\?v=325/);
+  assert.match(release,/product-completion-v24\.js\?v=241/);
   assert.match(release,/task-runtime-bridge\.js\?v=2102/);
   assert.match(release,/installAIOfficeOSShell/);
   assert.match(release,/installConnectorRegistry/);
