@@ -1,15 +1,42 @@
 import http from 'node:http';
 import app from '../../api/app.ts';
 import asset from '../../api/asset.ts';
+import health from '../../api/health.ts';
+import providerCheck from '../../api/provider-check.ts';
+import selftest from '../../api/selftest.ts';
+import healthLegacy from '../../api/health-legacy-retired.ts';
+import researchLegacy from '../../api/research-legacy-retired.ts';
+import driveBrain from '../../api/drive-brain-gateway.ts';
+import research from '../../api/research-gateway.ts';
+import proxy from '../../api/proxy-gateway.ts';
+import image from '../../api/image-gateway.ts';
+import ingest from '../../api/ingest-gateway.ts';
 
 const PORT = Number(process.env.PORT || 10000);
-const neonOrigin = String(process.env.NEON_API_ORIGIN || '').replace(/\/+$/, '');
 const MAX_BODY = 25 * 1024 * 1024;
+
+const API_HANDLERS = new Map([
+  ['/api/health', health],
+  ['/api/provider-check', providerCheck],
+  ['/api/selftest', selftest],
+  ['/api/health-v17', healthLegacy],
+  ['/api/ws-xiaozhi', researchLegacy],
+  ['/api/drive-brain', driveBrain],
+  ['/api/research', research],
+  ['/api/research-v28', researchLegacy],
+  ['/api/research-v29', researchLegacy],
+  ['/api/research-v30', researchLegacy],
+  ['/api/research-v31', researchLegacy],
+  ['/api/proxy', proxy],
+  ['/api/image', image],
+  ['/api/ingest', ingest]
+]);
 
 function responseAdapter(nodeRes) {
   let statusCode = 200;
   return {
     setHeader(name, value) { nodeRes.setHeader(name, value); return this; },
+    getHeader(name) { return nodeRes.getHeader(name); },
     status(code) { statusCode = Number(code) || 200; nodeRes.statusCode = statusCode; return this; },
     json(value) {
       if (!nodeRes.hasHeader('content-type')) nodeRes.setHeader('content-type', 'application/json; charset=utf-8');
@@ -59,40 +86,21 @@ function makeLegacyReq(req, url, body) {
   }
   return {
     method: req.method,
-    headers: req.headers,
+    headers: {
+      ...req.headers,
+      'x-forwarded-host': req.headers.host || '',
+      'x-forwarded-proto': 'https'
+    },
     query: Object.fromEntries(url.searchParams.entries()),
     body: parsed
   };
 }
 
-async function proxyApi(req, res, url) {
-  if (!neonOrigin) {
-    res.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(JSON.stringify({ error: 'NEON_API_ORIGIN_NOT_CONFIGURED' }));
-    return;
-  }
+async function invoke(handler, req, res, url) {
   const body = await readBody(req);
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value == null || ['host', 'content-length', 'connection'].includes(key.toLowerCase())) continue;
-    headers.set(key, Array.isArray(value) ? value.join(', ') : String(value));
-  }
-  headers.set('x-forwarded-host', String(req.headers.host || ''));
-  headers.set('x-forwarded-proto', 'https');
-  const upstream = await fetch(`${neonOrigin}${url.pathname}${url.search}`, {
-    method: req.method,
-    headers,
-    body: ['GET', 'HEAD'].includes(String(req.method)) ? undefined : body,
-    redirect: 'manual',
-    signal: AbortSignal.timeout(60000)
-  });
-  res.statusCode = upstream.status;
-  upstream.headers.forEach((value, key) => {
-    if (!['content-encoding', 'transfer-encoding', 'content-length', 'connection'].includes(key.toLowerCase())) res.setHeader(key, value);
-  });
-  res.setHeader('x-ai-office-edge', 'render-neon');
-  const data = Buffer.from(await upstream.arrayBuffer());
-  res.end(data);
+  const legacyReq = makeLegacyReq(req, url, body);
+  const adapter = responseAdapter(res);
+  return handler(legacyReq, adapter);
 }
 
 async function handleLocal(req, res, url) {
@@ -119,10 +127,22 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/edge-health') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, service: 'ai-office-edge', neonApiConfigured: Boolean(neonOrigin) }));
+      res.end(JSON.stringify({
+        ok: true,
+        service: 'ai-office-edge',
+        runtime: 'render',
+        database: process.env.DATABASE_URL ? 'neon-configured' : 'not-configured',
+        vercelDependency: false
+      }));
       return;
     }
-    if (url.pathname.startsWith('/api/')) return await proxyApi(req, res, url);
+    const apiHandler = API_HANDLERS.get(url.pathname);
+    if (apiHandler) return await invoke(apiHandler, req, res, url);
+    if (url.pathname.startsWith('/api/')) {
+      res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ error: 'API_ROUTE_NOT_FOUND' }));
+      return;
+    }
     return await handleLocal(req, res, url);
   } catch (error) {
     const status = Number(error?.statusCode || 500);
@@ -133,5 +153,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(JSON.stringify({ event: 'ai_office_edge_ready', port: PORT, neonApiConfigured: Boolean(neonOrigin) }));
+  console.log(JSON.stringify({
+    event: 'ai_office_edge_ready',
+    port: PORT,
+    runtime: 'render',
+    neonDatabaseConfigured: Boolean(process.env.DATABASE_URL),
+    vercelDependency: false
+  }));
 });
