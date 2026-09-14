@@ -73,6 +73,7 @@ function assertCanonicalRuntimeReady(){
     v20:Boolean(window.AIOfficeV20?.handleMessage),
     v22:Boolean(window.AIOfficeV22?.handleMessage),
     canonical:Boolean(window.AIOfficeCanonicalInputGate?.dispatch),
+    fastQA:Boolean(window.AIOfficeGeminiFastQA?.ready),
     tasks:Boolean(window.AIOfficeV2Tasks?.list)
   };
   const missing=Object.entries(checks).filter(([,ready])=>!ready).map(([name])=>name);
@@ -131,6 +132,8 @@ async function bootProduction(){
   updateBoot('Đang khóa cổng lệnh canonical…');
   const canonicalGate=await import('../canonical-input-gate-v71.js?v=712-p4');
   canonicalGate.installCanonicalInputGate?.();
+  const fastQA=await import('./gemini-fast-qa-v1.js?v=100');
+  fastQA.installGeminiFastQA?.();
   installCanonicalResultContract();
   const checks=assertCanonicalRuntimeReady();
 
@@ -148,7 +151,8 @@ async function bootProduction(){
     ready:true,
     checks:Object.freeze(checks),
     shell:'office-os',
-    canonical:'AIOfficeCanonicalInputGate'
+    canonical:'AIOfficeCanonicalInputGate',
+    knowledgeQA:'gemini-google-search-fast'
   });
   window.dispatchEvent(new CustomEvent('ai-office-production-ready',{detail:window.AIOfficeProductionRuntime}));
   document.getElementById('aiOfficeOSBoot')?.remove();
