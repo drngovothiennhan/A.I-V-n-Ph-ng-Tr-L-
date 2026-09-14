@@ -15,7 +15,8 @@ test('Office OS boot explicitly initializes stable core before knowledge router'
 
 test('Office OS hotfix waits for V22 and never stringifies task objects',()=>{
   assert.match(hotfix,/AIOfficeV22\?\.handleMessage/);
-  assert.match(hotfix,/typeof result==='object'/);
+  assert.match(hotfix,/typeof result!=='object'/);
+  assert.match(hotfix,/typeof result\.task==='object'/);
   assert.match(hotfix,/outputDraft/);
   assert.doesNotMatch(hotfix,/String\(result\)/,'task objects must not be rendered as [object Object]');
 });
