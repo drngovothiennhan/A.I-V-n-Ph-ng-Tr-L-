@@ -64,7 +64,7 @@ jobs:
         run: |
           PROD_URL="${{ steps.production.outputs.url }}"
           test -n "$PROD_URL"
-          vercel curl "$PROD_URL/api/research" -- \
+          vercel --token "$VERCEL_TOKEN" curl /api/research --deployment "$PROD_URL" -- \
             --fail --silent --show-error --max-time 18 \
             --request POST \
             --header 'content-type: application/json' \
