@@ -8,20 +8,25 @@ const v28Url = new URL('../api/research-v28.js', import.meta.url);
 const v29Url = new URL('../api/research-v29.js', import.meta.url);
 const v30Url = new URL('../api/research-v30.js', import.meta.url);
 const v31Url = new URL('../api/research-v31.js', import.meta.url);
+const v32Url = new URL('../api/research-v32.js', import.meta.url);
 const proxyUrl = new URL('../api/proxy.ts', import.meta.url);
 const entry = await readFile(entryUrl, 'utf8');
 const v28 = await readFile(v28Url, 'utf8');
 const v29 = await readFile(v29Url, 'utf8');
 const v30 = await readFile(v30Url, 'utf8');
 const v31 = await readFile(v31Url, 'utf8');
+const v32 = await readFile(v32Url, 'utf8');
 const proxy = await readFile(proxyUrl, 'utf8');
-for (const url of [entryUrl,v28Url,v29Url,v30Url,v31Url,proxyUrl]) {
+for (const url of [entryUrl,v28Url,v29Url,v30Url,v31Url,v32Url,proxyUrl]) {
   const syntax = spawnSync(process.execPath, ['--check', fileURLToPath(url)], { encoding:'utf8' });
   assert.equal(syntax.status, 0, `runtime syntax error: ${syntax.stderr || syntax.stdout}`);
 }
 
-assert.match(entry, /import v31 from '\.\/research-v31\.js'/, 'public research endpoint must route through v3.1 freshness entry');
-assert.match(entry, /export default v31/, 'public research endpoint must export v3.1 handler');
+assert.match(entry, /import v32 from '\.\/research-v32\.js'/, 'public research endpoint must route through v3.2 fast-QA entry');
+assert.match(entry, /export default v32/, 'public research endpoint must export v3.2 handler');
+assert.match(v32, /import v31 from '\.\/research-v31\.js'/, 'v3.2 must preserve v3.1 freshness and high-stakes delegation');
+assert.match(v32, /if\(highStakes\(req\)\)return v31\(req,res\)/, 'v3.2 high-stakes requests must continue through hardened v3.1 path');
+assert.match(v32, /return v31\(req,res\)/, 'v3.2 non-fast requests must continue through v3.1 path');
 
 assert.match(v28, /function relevance\(/, 'research fallback must score relevance');
 assert.match(v28, /tools:\[\{google_search:\{\}\}\]/, 'native Gemini Google Search must remain tier 1');
@@ -53,4 +58,4 @@ assert.doesNotMatch(proxy, /:\s*(?:string|unknown|any)\b/, 'proxy runtime must r
 assert.match(proxy, /async function chief\(body\)/, 'proxy chief path must be plain JS compatible');
 assert.match(proxy, /export default async function handler\(req, res\)/, 'proxy entry must be plain JS compatible');
 
-console.log('research-relevance-v31: provider-health-aware fresh retrieval + deterministic fallback + loader-compatible proxy PASS');
+console.log('research-relevance-v32: fast-QA wrapper + provider-health-aware fresh retrieval + deterministic fallback PASS');
