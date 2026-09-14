@@ -2,7 +2,7 @@ import { BrowserTaskRepository, DEFAULT_TASK_STORAGE_KEY } from './task-engine.j
 import { TASK_STATES, TERMINAL_TASK_STATES } from './contracts.js';
 import { createChiefDelegationContract, OFFICE_V2_DELEGATION_VERSION } from './chief-delegation.js';
 
-export const OFFICE_V2_TASK_BRIDGE_VERSION='2.10.0-chief-delegation-sync';
+export const OFFICE_V2_TASK_BRIDGE_VERSION='2.10.1-chief-plan-sync';
 export const LEGACY_TASK_STORAGE_KEY='ai-office-tasks-v11';
 const DEFAULT_POLL_MS=3000;
 
@@ -49,19 +49,16 @@ function legacyFingerprint(task){
     task?.approval?.status||null,task?.artifacts?.length??task?.files?.length??null
   ]);
 }
-function operationalMetadata(task,fingerprint,instruction){
-  const canonical=task?.intentV32||{};
-  const interaction=task?.intentV22||{};
-  let delegation=null;
-  try{delegation=createChiefDelegationContract(task,instruction)}catch{}
+function delegationFor(task,instruction){try{return createChiefDelegationContract(task,instruction)}catch{return null}}
+function operationalMetadata(task,fingerprint,delegation){
   return {
     bridge:'legacy-v11',bridgeVersion:OFFICE_V2_TASK_BRIDGE_VERSION,legacyFingerprint:fingerprint,legacyStatus:String(task?.status||'unknown'),
     progress:Math.max(0,Math.min(100,finite(task?.progress,0))),
     orchestrationId:task?.orchestrationId||null,
-    intent:canonical.type||interaction.taskKind||null,
-    risk:canonical.risk||interaction.risk||null,
-    needsApproval:Boolean(canonical.needsApproval??interaction.needsApproval??task?.approvalRequired),
-    artifactFormats:Array.isArray(canonical.artifactFormats)?canonical.artifactFormats.slice(0,12):[],
+    intent:task?.intentV32?.type||task?.intentV22?.taskKind||null,
+    risk:task?.intentV32?.risk||task?.intentV22?.risk||null,
+    needsApproval:Boolean(task?.intentV32?.needsApproval??task?.intentV22?.needsApproval??task?.approvalRequired),
+    artifactFormats:Array.isArray(task?.intentV32?.artifactFormats)?task.intentV32.artifactFormats.slice(0,12):[],
     qaScore:Number.isFinite(Number(task?.qa?.score))?Number(task.qa.score):null,
     outputCount:Array.isArray(task?.artifacts)?task.artifacts.length:Array.isArray(task?.files)?task.files.length:0,
     delegationVersion:delegation?.version||null,
@@ -76,14 +73,14 @@ function operationalMetadata(task,fingerprint,instruction){
 export function normalizeLegacyTask(task,existing=null){
   if(!task||typeof task!=='object'||!task.id)return null;
   const fingerprint=legacyFingerprint(task);
-  if(existing?.metadata?.legacyFingerprint===fingerprint&&existing?.metadata?.delegationVersion===OFFICE_V2_DELEGATION_VERSION)return existing;
-  const instruction=legacyInstruction(task),at=now(),from=existing?.status||null,to=legacyStatus(task.status);
+  if(existing?.metadata?.legacyFingerprint===fingerprint&&existing?.metadata?.delegationVersion===OFFICE_V2_DELEGATION_VERSION&&existing?.plan)return existing;
+  const instruction=legacyInstruction(task),delegation=delegationFor(task,instruction),at=now(),from=existing?.status||null,to=legacyStatus(task.status);
   return {
     id:String(task.id),requestId:task?.orchestrationId||existing?.requestId||null,
     title:legacyTitle(task,instruction),instruction,status:to,
     createdAt:asText(task?.createdAt||existing?.createdAt||at,80),updatedAt:asText(task?.updatedAt||at,80),
     attempt:Math.max(1,finite(task?.attempt,existing?.attempt||1)),revision:Number(existing?.revision||0)+1,
-    plan:null,metadata:operationalMetadata(task,fingerprint,instruction),
+    plan:delegation||existing?.plan||null,metadata:operationalMetadata(task,fingerprint,delegation),
     history:[...(Array.isArray(existing?.history)?existing.history:[]),{at,from,to,event:'legacy-sync',reason:null}]
   };
 }

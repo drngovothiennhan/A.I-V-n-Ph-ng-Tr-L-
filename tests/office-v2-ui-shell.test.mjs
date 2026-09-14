@@ -39,7 +39,7 @@ test('production path renders Office OS first while preserving stable task runti
   assert.match(app,/#app\{display:none!important\}/);
   assert.doesNotMatch(app,/rel="modulepreload" href="\/src\/office-v2\/ui-v2-shell/);
   const officeOS=release.indexOf("office-os/office-shell-v1.js?v=101");
-  const tasks=release.indexOf("task-runtime-bridge.js?v=2101");
+  const tasks=release.indexOf("task-runtime-bridge.js?v=2102");
   assert.ok(officeOS>=0&&tasks>officeOS);
   assert.match(release,/installOfficeV2TaskRuntimeBridge/);
   assert.match(release,/installAIOfficeOSShell/);

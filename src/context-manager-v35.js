@@ -1,4 +1,4 @@
-const VERSION='3.5.0-bounded-context-manager';
+const VERSION='3.5.1-context-continuity';
 const CHAT_KEY='ai-office-conversation-v19';
 const TASK_KEY='ai-office-tasks-v11';
 const CANCEL_KEY='ai-office-cancel-audit-v33';
@@ -9,9 +9,28 @@ const TERMINAL=new Set(['completed','failed','cancelled','rejected','approval_ca
 
 const getJson=(key,fallback=[])=>{try{if(typeof localStorage==='undefined')return fallback;return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
 const compactText=(text,max=1200)=>String(text||'').replace(/\s+/g,' ').trim().slice(0,max);
+const taskKind=task=>task?.intentV32?.type||task?.intent?.kind||task?.category||task?.kind||'';
+function kindFamily(value=''){
+  const kind=String(value||'').toLowerCase();
+  if(['document_task','admin'].includes(kind))return'document';
+  if(['data_task','data'].includes(kind))return'data';
+  if(['search_task','research'].includes(kind))return'research';
+  if(['internal_knowledge_task','knowledge'].includes(kind))return'knowledge';
+  if(['communication_task','communication'].includes(kind))return'communication';
+  if(['system_command','app_command','voice_command','action'].includes(kind))return'action';
+  if(['task','general','tech','presentation','image'].includes(kind))return'general';
+  return kind;
+}
+function taskTime(task={}){
+  const value=Date.parse(task?.updatedAt||task?.createdAt||'');
+  return Number.isFinite(value)?value:0;
+}
+function newestTask(tasks=[],predicate=()=>true){
+  return tasks.filter(predicate).sort((a,b)=>taskTime(b)-taskTime(a))[0]||null;
+}
 const compactTask=(task=null)=>task?{
   id:task.id||null,title:compactText(task.title||task.originalMessage||'',180),status:task.status||null,
-  kind:task.intentV32?.type||task.intent?.kind||task.category||task.kind||null,
+  kind:taskKind(task)||null,
   progress:Number.isFinite(Number(task.progress))?Number(task.progress):null,
   outputSummary:compactText(task.outputDraft||task.result?.summary||'',700),
   artifactFormats:Array.isArray(task.artifactFormats)?task.artifactFormats.slice(0,5):[],
@@ -39,13 +58,14 @@ function compressedConversation(){
   };
 }
 function relevantTaskMemory(tasks,kind,currentId){
-  return tasks.filter(t=>t?.id!==currentId&&(kind?String(t?.intentV32?.type||t?.intent?.kind||t?.category||t?.kind||'')===String(kind):true))
-    .slice(0,3).map(compactTask);
+  const family=kindFamily(kind);
+  return tasks.filter(t=>t?.id!==currentId&&(!family||kindFamily(taskKind(t))===family))
+    .sort((a,b)=>taskTime(b)-taskTime(a)).slice(0,3).map(compactTask);
 }
 export function createContextSnapshot({userInstruction='',kind='',channel='text'}={}){
-  const tasks=getJson(TASK_KEY,[]);const current=tasks.find(t=>ACTIVE.has(t?.status))||null;
-  const recentResult=tasks.find(t=>TERMINAL.has(t?.status))||null;
-  const approval=tasks.find(t=>['awaiting_approval','waiting_approval'].includes(t?.status))||null;
+  const tasks=getJson(TASK_KEY,[]);const current=newestTask(tasks,t=>ACTIVE.has(t?.status));
+  const recentResult=newestTask(tasks,t=>TERMINAL.has(t?.status));
+  const approval=newestTask(tasks,t=>['awaiting_approval','waiting_approval'].includes(t?.status));
   const cancels=getJson(CANCEL_KEY,[]);const cancelState=cancels.at?.(-1)||cancels[cancels.length-1]||null;
   const conversation=compressedConversation();
   const internalStored=typeof localStorage!=='undefined'&&localStorage.getItem(INTERNAL_PREF_KEY)==='1';

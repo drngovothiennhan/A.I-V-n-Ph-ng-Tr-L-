@@ -1,7 +1,7 @@
 import { classifyInteractionV22, normalizeV22 } from './interaction-policy-v22.js';
-import { createContextSnapshot, contextEnvelopeFields } from './context-manager-v35.js';
+import { createContextSnapshot, contextEnvelopeFields } from './context-manager-v35.js?v=351';
 
-export const AI_CORE_VERSION = '3.2.3-meta-question-safe';
+export const AI_CORE_VERSION = '3.2.4-context-continuity';
 export const CANONICAL_INTENTS = Object.freeze({
   QUESTION:'QUESTION',
   TASK:'TASK',
