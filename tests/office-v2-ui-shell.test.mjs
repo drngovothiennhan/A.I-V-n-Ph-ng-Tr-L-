@@ -38,7 +38,7 @@ test('production path has one Office OS entry and preserves stable task runtime 
   assert.match(app,/office-os\/production-entry-v1\.js\?v=100/);
   assert.doesNotMatch(app,/bootstrap-v17\.js|release-v193\.js|office-v2\/ui-v2-shell|office-shell-v1\.js/);
   const taskBridge=entry.indexOf("../office-v2/task-runtime-bridge.js?v=2102");
-  const ready=entry.indexOf('assertCanonicalRuntimeReady()');
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
   const mount=entry.indexOf("./office-shell-v1.js?v=102");
   assert.ok(taskBridge>=0&&ready>taskBridge&&mount>ready);
   assert.match(entry,/installOfficeV2TaskRuntimeBridge/);
