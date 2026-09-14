@@ -43,18 +43,23 @@ test('connector health is normalized without exposing credentials',()=>{
   assert.equal(JSON.stringify(items).includes('secret'),false);
 });
 
-test('Chief router delegates grounded queries to legacy verified path and direct queries to Chief',()=>{
+test('Chief router uses bounded managed context for direct answers and delegates grounded queries',()=>{
   assert.match(router,/policy\.mode===ANSWER_MODES\.DIRECT/);
+  assert.match(router,/managedDirectContext/);
+  assert.match(router,/AIOfficeOrchestrator\?\.createEnvelope/);
+  assert.match(router,/không tự suy diễn nội dung tệp/i);
   assert.match(router,/NEED_GROUNDED_RESEARCH/);
   assert.match(router,/return originalHandle\(value,options\)/);
   assert.match(router,/\/api\/proxy\?op=chief/);
 });
 
-test('release renders Office OS shell before loading P2 connector and P3 answer support',()=>{
+test('release renders Office OS shell before loading P2 connector and hardened P3 answer support',()=>{
   const shell=release.indexOf("office-os/office-shell-v1.js?v=101");
   const connectors=release.indexOf("office-os/connector-registry-v1.js?v=100");
-  const answers=release.indexOf("office-os/chief-answer-router-v1.js?v=100");
+  const answers=release.indexOf("office-os/chief-answer-router-v1.js?v=101");
   assert.ok(shell>=0&&connectors>shell&&answers>connectors);
+  assert.match(release,/ai-orchestrator-core-v32\.js\?v=324/);
+  assert.match(release,/task-runtime-bridge\.js\?v=2102/);
   assert.match(release,/installAIOfficeOSShell/);
   assert.match(release,/installConnectorRegistry/);
   assert.match(release,/installChiefAnswerRouter/);
