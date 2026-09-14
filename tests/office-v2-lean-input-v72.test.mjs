@@ -21,7 +21,7 @@ test('Office OS stays hidden until canonical input and stable runtime support ar
   const bootstrap=entry.indexOf("../bootstrap-v18.js");
   const runtime=entry.indexOf("../interaction-runtime-v23.js?v=230");
   const gate=entry.indexOf("../canonical-input-gate-v71.js?v=712-p4");
-  const ready=entry.indexOf('assertCanonicalRuntimeReady()');
+  const ready=entry.indexOf('const checks=assertCanonicalRuntimeReady();');
   const office=entry.indexOf("./office-shell-v1.js?v=102");
   assert.ok(bootstrap>=0&&runtime>bootstrap&&gate>runtime&&ready>gate&&office>ready);
   assert.match(app,/Đang mở văn phòng của bạn/);
