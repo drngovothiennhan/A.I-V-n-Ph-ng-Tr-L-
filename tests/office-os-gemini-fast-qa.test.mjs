@@ -39,12 +39,16 @@ test('Office OS knowledge questions use one Gemini Google Search fast path',()=>
 });
 
 test('Gemini fast API answers from Google Search grounding with current-query-only context',async()=>{
-  assert.equal(VERSION,'3.2.1-gemini-fast-qa-quota-fallback');
+  assert.equal(VERSION,'3.2.2-gemini-grounded-free-tier');
   const oldKey=process.env.GEMINI_API_KEY;
+  const oldGrounded=process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL;
   const oldFetch=global.fetch;
   process.env.GEMINI_API_KEY='test-key';
+  process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL='gemini-2.5-flash-lite';
   let sentBody=null;
-  global.fetch=async(_url,options={})=>{
+  let sentUrl='';
+  global.fetch=async(url,options={})=>{
+    sentUrl=String(url);
     sentBody=JSON.parse(options.body);
     return groundedResponse();
   };
@@ -54,11 +58,14 @@ test('Gemini fast API answers from Google Search grounding with current-query-on
     await handler(req,res);
     assert.equal(res.statusCode,200);
     assert.equal(res.body.provider,'gemini-google-search-fast');
+    assert.equal(res.body.model,'gemini-2.5-flash-lite');
     assert.equal(res.body.grounded,true);
     assert.equal(res.body.verificationStatus,'verified');
     assert.equal(res.body.contextPolicy,'current-query-only');
     assert.equal(res.body.sources.length,1);
     assert.equal(res.body.fallbackUsed,false);
+    assert.equal(res.body.attemptCount,1);
+    assert.match(sentUrl,/gemini-2\.5-flash-lite/);
     const prompt=sentBody?.contents?.[0]?.parts?.[0]?.text||'';
     assert.match(prompt,/Chỉ trả lời CÂU HỎI HIỆN TẠI/);
     assert.match(prompt,/Thủ đô của Việt Nam là gì\?/);
@@ -66,15 +73,18 @@ test('Gemini fast API answers from Google Search grounding with current-query-on
   }finally{
     global.fetch=oldFetch;
     if(oldKey==null)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;
+    if(oldGrounded==null)delete process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL;else process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL=oldGrounded;
   }
 });
 
-test('Gemini fast API stays on Gemini and falls back to economy model on 429',async()=>{
+test('Grounded fast QA ignores non-grounded Gemini model settings and makes exactly one call',async()=>{
   const oldKey=process.env.GEMINI_API_KEY;
+  const oldGrounded=process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL;
   const oldModel=process.env.AI_OFFICE_GEMINI_MODEL;
   const oldEconomy=process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL;
   const oldFetch=global.fetch;
   process.env.GEMINI_API_KEY='test-key';
+  process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL='gemini-2.5-flash-lite';
   process.env.AI_OFFICE_GEMINI_MODEL='gemini-3.8-flash';
   process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL='gemini-3.5-flash-lite';
   const urls=[];
@@ -82,24 +92,24 @@ test('Gemini fast API stays on Gemini and falls back to economy model on 429',as
   global.fetch=async(url,options={})=>{
     urls.push(String(url));
     bodies.push(JSON.parse(options.body));
-    if(urls.length===1)return new Response(JSON.stringify({error:{message:'quota'}}),{status:429,headers:{'content-type':'application/json'}});
-    return groundedResponse('Hà Nội là thủ đô của Việt Nam.');
+    return groundedResponse();
   };
   try{
     const req={method:'POST',body:{fastAnswer:true,query:'Thủ đô Việt Nam?',mode:'general_question'}};
     const res=responseRecorder();
     await handler(req,res);
     assert.equal(res.statusCode,200);
-    assert.equal(res.body.provider,'gemini-google-search-fast');
-    assert.equal(res.body.model,'gemini-3.5-flash-lite');
-    assert.equal(res.body.fallbackUsed,true);
-    assert.equal(res.body.attemptCount,2);
-    assert.match(urls[0],/gemini-3\.8-flash/);
-    assert.match(urls[1],/gemini-3\.5-flash-lite/);
-    assert.ok(bodies.every(body=>body.tools?.some(tool=>tool.google_search)),'every Gemini attempt must keep Google Search grounding');
+    assert.equal(urls.length,1);
+    assert.match(urls[0],/gemini-2\.5-flash-lite/);
+    assert.doesNotMatch(urls[0],/gemini-3\./);
+    assert.equal(res.body.model,'gemini-2.5-flash-lite');
+    assert.equal(res.body.fallbackUsed,false);
+    assert.equal(res.body.attemptCount,1);
+    assert.ok(bodies[0]?.tools?.some(tool=>tool.google_search),'grounded request must keep Google Search');
   }finally{
     global.fetch=oldFetch;
     if(oldKey==null)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;
+    if(oldGrounded==null)delete process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL;else process.env.AI_OFFICE_GEMINI_GROUNDED_MODEL=oldGrounded;
     if(oldModel==null)delete process.env.AI_OFFICE_GEMINI_MODEL;else process.env.AI_OFFICE_GEMINI_MODEL=oldModel;
     if(oldEconomy==null)delete process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL;else process.env.AI_OFFICE_GEMINI_ECONOMY_MODEL=oldEconomy;
   }
