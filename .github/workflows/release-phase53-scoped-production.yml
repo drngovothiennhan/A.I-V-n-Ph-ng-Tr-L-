@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'api/app.ts'
+      - 'api/research.ts'
+      - 'api/research-v*.js'
       - 'src/bootstrap-v17.js'
       - 'src/release-v193.js'
       - 'src/canonical-input-gate-v71.js'
@@ -146,6 +148,28 @@ jobs:
             --request POST --header "x-ai-office-selftest-source: $GITHUB_SHA" \
             -o /tmp/candidate-selftest.json
           node -e "const t=require('/tmp/candidate-selftest.json'); if(t.pass!==true||t.engine!=='internal-office-xml-v24'||t.sourceCommit!==process.env.GITHUB_SHA) process.exit(1)"
+
+          vercel curl "$URL/api/research" -- \
+            --fail --silent --show-error --max-time 18 \
+            --request POST \
+            --header 'content-type: application/json' \
+            --data '{"query":"Thủ đô của Việt Nam là thành phố nào?","mode":"general_question","useInternal":false,"fastAnswer":true}' \
+            -o /tmp/candidate-gemini-fast-qa.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/candidate-gemini-fast-qa.json','utf8'));
+          const sources=Array.isArray(data.sources)?data.sources:[];
+          if(data.provider!=='gemini-google-search-fast') throw new Error(`unexpected provider: ${data.provider}`);
+          if(data.contextPolicy!=='current-query-only') throw new Error(`unexpected context policy: ${data.contextPolicy}`);
+          if(data.grounded!==true||data.verificationStatus!=='verified') throw new Error(`grounding not verified: ${data.verificationStatus}`);
+          if(!String(data.answer||'').trim()) throw new Error('empty Gemini answer');
+          if(!sources.some(s=>/^https?:\/\//.test(String(s?.url||'')))) throw new Error('no public Google grounding source');
+          if(Number(data.latencyMs||0)<=0||Number(data.latencyMs)>12000) throw new Error(`fast QA latency out of contract: ${data.latencyMs}`);
+          console.log(`Gemini Fast QA candidate PASS provider=${data.provider} sources=${sources.length} latencyMs=${data.latencyMs}`);
+          NODE
+          GEMINI_LATENCY="$(node -e "const d=require('/tmp/candidate-gemini-fast-qa.json');process.stdout.write(String(d.latencyMs||''))")"
+          GEMINI_SOURCES="$(node -e "const d=require('/tmp/candidate-gemini-fast-qa.json');process.stdout.write(String(Array.isArray(d.sources)?d.sources.length:0))")"
+          echo "Real Gemini + Google Search gate PASS: sources=$GEMINI_SOURCES latencyMs=$GEMINI_LATENCY" >> "$GITHUB_STEP_SUMMARY"
           echo "Candidate exact-source smoke PASS: $SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Promote verified candidate by scoped REST API
