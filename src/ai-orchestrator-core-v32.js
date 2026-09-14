@@ -1,7 +1,7 @@
 import { classifyInteractionV22, normalizeV22 } from './interaction-policy-v22.js';
 import { createContextSnapshot, contextEnvelopeFields } from './context-manager-v35.js?v=351';
 
-export const AI_CORE_VERSION = '3.2.4-context-continuity';
+export const AI_CORE_VERSION = '3.2.5-artifact-optout';
 export const CANONICAL_INTENTS = Object.freeze({
   QUESTION:'QUESTION',
   TASK:'TASK',
@@ -27,9 +27,11 @@ const VOICE_CONTROLS=/\b(dung noi|ngung noi|noi lai|lap lai|doc lai|tiep tuc ngh
 const DOCUMENT_OUTPUT=/\b(docx|word|file word|van ban|bao cao|ke hoach|cong van|to trinh|thong bao|quyet dinh|bien ban|giay moi)\b/;
 const DATA_OUTPUT=/\b(xlsx|excel|csv|bang tinh|du lieu|danh sach|doi chieu|loc danh sach|thong ke|pivot)\b/;
 const MUTATION=/\b(tao|soan|lap|xuat|loc|doi chieu|sua|cap nhat|trien khai|thuc hien|thi hanh|lam|gui|dang|xoa|ket noi|cau hinh)\b/;
+const NO_ARTIFACT_HINTS=/\b(khong tao (?:file|tep|docx|word|xlsx|excel|pptx|powerpoint|png|pdf)|khong xuat (?:file|tep|docx|word|xlsx|excel|pptx|powerpoint|png|pdf)|khong can (?:file|tep)|chi tra loi)\b/;
 
 function uniq(list=[]){return [...new Set(list.filter(Boolean))]}
 function explicitInternalRequested(n=''){return INTERNAL_HINTS.test(n)&&!INTERNAL_NEGATION.test(n)}
+function artifactOptedOut(n=''){return NO_ARTIFACT_HINTS.test(n)}
 function sourceDirective(type,n,context={}){
   const explicitInternal=explicitInternalRequested(n);
   const enabled=Boolean(context.internalOptIn||context.useInternal);
@@ -49,6 +51,7 @@ function sourceDirective(type,n,context={}){
   return {mode:'task-context',internalRequested:false,internalAuthorized:false,externalAllowed:false,preferredProvider:'orchestrator',reason:'task-does-not-require-search-by-default'};
 }
 function artifactHints(n,interaction={}){
+  if(artifactOptedOut(n))return[];
   const formats=[];
   if(/\b(docx|word|file word)\b/.test(n))formats.push('docx');
   if(/\b(xlsx|excel|bang tinh)\b/.test(n))formats.push('xlsx');
@@ -95,6 +98,7 @@ export function classifyCanonicalIntent(text='',context={}){
   const interaction=context.interaction||classifyInteractionV22(raw,{hasActiveTask:Boolean(context.hasActiveTask)});
   const type=canonicalType(raw,n,interaction,context);
   const questionLike=interaction?.mode==='question'||interaction?.mode==='casual'||type===CANONICAL_INTENTS.QUESTION;
+  const artifactOptOut=!questionLike&&artifactOptedOut(n);
   const artifacts=questionLike?[]:artifactHints(n,interaction);
   const source=sourceDirective(type,n,context);
   const confidence=Math.max(0.55,Math.min(0.99,Number(interaction?.confidence||0.7)));
@@ -110,6 +114,7 @@ export function classifyCanonicalIntent(text='',context={}){
     needsApproval,
     artifactFormats:artifacts,
     artifactRequested:artifacts.length>0,
+    artifactOptOut,
     source,
     channel:context.channel||'text',
     continuation:Boolean(context.continuation),
@@ -118,6 +123,7 @@ export function classifyCanonicalIntent(text='',context={}){
       interaction?.meta?'meta-question':'',
       interaction?.taskKind?`kind:${interaction.taskKind}`:'kind:general',
       source.reason,
+      artifactOptOut?'artifact:opt-out':'',
       artifacts.length?`artifact:${artifacts.join('+')}`:''
     ])
   };
@@ -150,6 +156,7 @@ export function createOrchestrationEnvelope(text='',context={}){
       sourceMode:intent.source.mode,
       provider:intent.source.preferredProvider,
       artifactFormats:intent.artifactFormats,
+      artifactOptOut:intent.artifactOptOut,
       approvalRequired:intent.needsApproval
     }
   };
