@@ -1,5 +1,5 @@
 const RELEASE = '1.9.3';
-const AI_CORE = '3.2.4';
+const AI_CORE = '3.2.5';
 const GLOBAL_CANCEL = '3.3.0';
 const AUTHORIZATION = '3.4.0';
 const CONTEXT_MANAGER = '3.5.1';
@@ -12,7 +12,7 @@ const VOICE_TURN_COORDINATOR = '2.5';
 const INTERNAL_SOURCE_CONTROL = '2.7.0';
 const MULTISOURCE_ORCHESTRATOR = '2.7.1';
 const RESEARCH_SAFETY = '2.6.3';
-const PRODUCT_COMPLETION = '2.4';
+const PRODUCT_COMPLETION = '2.4.1';
 const CREDENTIALS_RUNTIME = '2.3.0';
 const OFFICE_V2_DELEGATION = '2.10.0-chief-delegation';
 const OFFICE_V2_TASKS = '2.10.1-chief-plan-sync';
@@ -49,7 +49,7 @@ async function bootKnowledgeRouter() {
     suppressLegacyChrome();
     try { sessionStorage.setItem('ai-office-credentials-seen-v230','1'); } catch {}
 
-    const aiCore = await import('./ai-orchestrator-core-v32.js?v=324');
+    const aiCore = await import('./ai-orchestrator-core-v32.js?v=325');
     aiCore.installAICoreOrchestrator?.();
 
     const sourceControl = await import('./internal-source-control-v27.js?v=270');
@@ -71,7 +71,7 @@ async function bootKnowledgeRouter() {
     authorization.installAuthorizationBroker?.();
     const operations = await import('./operations-center-v36.js?v=360');
     operations.installOperationsCenter?.();
-    await import('./product-completion-v24.js?v=240');
+    await import('./product-completion-v24.js?v=241');
     await import('./voice-render-bridge-v23.js?v=230');
     const voiceTurns = await import('./voice-turn-coordinator-v25.js?v=250');
 
