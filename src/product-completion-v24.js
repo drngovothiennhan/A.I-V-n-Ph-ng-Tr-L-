@@ -1,4 +1,4 @@
-const VERSION = '2.4-product-completion';
+const VERSION = '2.4.1-artifact-optout';
 const TASK_KEY = 'ai-office-tasks-v11';
 const IMAGE_CACHE = new Map();
 
@@ -11,6 +11,7 @@ const DEFAULT_FORMAT = {
   presentation: 'pptx',
   image: 'png'
 };
+const NO_ARTIFACT_HINTS=/\b(khong tao (?:file|tep|docx|word|xlsx|excel|pptx|powerpoint|png|pdf)|khong xuat (?:file|tep|docx|word|xlsx|excel|pptx|powerpoint|png|pdf)|khong can (?:file|tep)|chi tra loi)\b/;
 
 function getJson(key, fallback=[]) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }
@@ -25,6 +26,9 @@ function strip(text='') {
     .replace(/\s+/g,' ')
     .trim();
 }
+function normalize(text='') {
+  return strip(text).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+}
 function esc(text='') {
   return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
@@ -33,6 +37,10 @@ function safeName(text='AI-Office-Image') {
 }
 function taskKind(task={}) {
   return task?.intentV22?.taskKind || task?.intent?.kind || task?.plan?.kind || task?.kind || task?.category || 'general';
+}
+function artifactOptOut(task={}) {
+  if(task?.intentV32?.artifactOptOut===true||task?.intent?.artifactOptOut===true)return true;
+  return NO_ARTIFACT_HINTS.test(normalize(`${task?.originalMessage||''} ${task?.rootInstruction||''}`));
 }
 function summarize(text='') {
   const clean = strip(text);
@@ -57,6 +65,22 @@ function ensureArtifactStep(task, format) {
   const approvalIndex = steps.findIndex(item => item?.id === 'approval');
   if (approvalIndex >= 0) steps.splice(approvalIndex, 0, step);
   else steps.push(step);
+}
+function suppressArtifact(task) {
+  task.artifactFormats=[];
+  task.requestedArtifact=false;
+  task.outputMode='conversation';
+  if(Array.isArray(task?.plan?.steps))task.plan.steps=task.plan.steps.filter(step=>step?.id!=='artifact');
+  if(task.intent&&typeof task.intent==='object'){
+    task.intent.artifactFormats=[];
+    task.intent.userWantsFile=false;
+    task.intent.artifactOptOut=true;
+  }
+  if(task.intentV32&&typeof task.intentV32==='object'){
+    task.intentV32.artifactFormats=[];
+    task.intentV32.artifactRequested=false;
+    task.intentV32.artifactOptOut=true;
+  }
 }
 function inferAspect(task) {
   const text = strip(`${task?.title || ''} ${task?.originalMessage || ''}`).toLowerCase();
@@ -95,6 +119,23 @@ async function completeDelivery(task) {
   if (!task || typeof task !== 'object') return task;
   const kind = taskKind(task);
   if (kind === 'question' || ['casual','control'].includes(kind)) return task;
+
+  if(artifactOptOut(task)){
+    suppressArtifact(task);
+    task.delivery={
+      version:VERSION,
+      summary:summarize(task.outputDraft||task.originalMessage||task.title),
+      format:null,
+      fileReady:false,
+      qaScore:task?.qa?.score??null,
+      artifactProvider:null,
+      artifactSuppressed:true,
+      generatedAt:new Date().toISOString()
+    };
+    persistTask(task);
+    renderDelivery(task);
+    return task;
+  }
 
   if (!Array.isArray(task.artifactFormats) || !task.artifactFormats.length) {
     const format = DEFAULT_FORMAT[kind] || 'docx';
@@ -141,11 +182,12 @@ function renderDelivery(task) {
     box.appendChild(panel);
   }
   const qa = task.delivery.qaScore == null ? 'QA đang cập nhật' : `QA ${task.delivery.qaScore}/100`;
-  panel.innerHTML = `<div class="ai24DeliveryCard"><b>Trình sản phẩm</b><p>${esc(task.delivery.summary)}</p><div class="ai24DeliveryMeta">${esc(qa)} · File ${esc(String(task.delivery.format).toUpperCase())} · ${esc(task.delivery.artifactProvider || 'artifact-engine')} · Mở mục “Sản phẩm” để duyệt/sửa/hủy.</div><div id="ai24ImageSlot"></div></div>`;
+  const deliveryMeta=task.delivery.artifactSuppressed?'Không tạo file theo yêu cầu':`File ${String(task.delivery.format).toUpperCase()} · ${task.delivery.artifactProvider || 'artifact-engine'}`;
+  panel.innerHTML = `<div class="ai24DeliveryCard"><b>Trình sản phẩm</b><p>${esc(task.delivery.summary)}</p><div class="ai24DeliveryMeta">${esc(qa)} · ${esc(deliveryMeta)} · Mở mục “Sản phẩm” để duyệt/sửa/hủy.</div><div id="ai24ImageSlot"></div></div>`;
 
   const image = IMAGE_CACHE.get(task.id);
   const slot = panel.querySelector('#ai24ImageSlot');
-  if (image && slot) {
+  if (image && slot && !task.delivery.artifactSuppressed) {
     const url = URL.createObjectURL(image.blob);
     const img = document.createElement('img');
     img.className = 'ai24ImagePreview';
@@ -173,6 +215,7 @@ function wrapDownloads() {
   const previous = typeof window.download === 'function' ? window.download.bind(window) : null;
   window.download = async function downloadV24(task,format) {
     const fmt = String(format || '').toLowerCase();
+    if (artifactOptOut(task)) return undefined;
     if (fmt === 'png' && taskKind(task) === 'image') {
       try {
         const image = await prepareAiImage(task);
