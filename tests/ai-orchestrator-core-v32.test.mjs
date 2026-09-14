@@ -12,6 +12,14 @@ assert.equal(c('Báo cáo hôm nay có gì?').type,I.QUESTION,'information quest
 const report=c('Hãy lập báo cáo hôm nay thành file Word.');
 assert.equal(report.type,I.DOCUMENT_TASK,'report + Word request must be DOCUMENT_TASK');
 assert.deepEqual(report.artifactFormats,['docx']);
+const noFile=c('Lập dàn ý 3 mục cho báo cáo kỹ thuật thử nghiệm P3, không gửi, không phát hành, không tạo file.');
+assert.equal(noFile.type,I.DOCUMENT_TASK,'no-file instruction must remain a task');
+assert.deepEqual(noFile.artifactFormats,[],'explicit no-file request must suppress default DOCX');
+assert.equal(noFile.artifactRequested,false);
+assert.equal(noFile.artifactOptOut,true);
+const noWord=c('Soạn báo cáo ngắn, không tạo file Word.');
+assert.deepEqual(noWord.artifactFormats,[],'explicit no-Word request must beat the Word keyword');
+assert.equal(noWord.artifactOptOut,true);
 assert.equal(c('Lọc danh sách này trong Excel.').type,I.DATA_TASK);
 assert.equal(c('Tìm thông tin mới nhất về quy định này.').type,I.SEARCH_TASK);
 const internal=c('Theo tài liệu nội bộ của cơ quan, nội dung này là gì?');
@@ -38,6 +46,9 @@ const envelope=createOrchestrationEnvelope('Hãy lập báo cáo hôm nay thành
 assert.equal(envelope.intent.type,I.DOCUMENT_TASK);
 assert.equal(envelope.context.conversationId,'test-conversation');
 assert.equal(envelope.route.artifactFormats[0],'docx');
+const noFileEnvelope=createOrchestrationEnvelope('Lập báo cáo tóm tắt, không tạo file.');
+assert.equal(noFileEnvelope.route.artifactOptOut,true);
+assert.deepEqual(noFileEnvelope.route.artifactFormats,[]);
 assert.match(AI_CORE_VERSION,/^3\.2\./);
 
-console.log('ai-orchestrator-core-v32: canonical intent + source consent safety PASS');
+console.log('ai-orchestrator-core-v32: canonical intent + source consent + artifact opt-out PASS');
