@@ -1,0 +1,65 @@
+name: Remove migrated A.I Office Vercel project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/remove-vercel-ai-office.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  remove-vercel-project:
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
+      VERCEL_PROJECT_NAME: ai-van-phong-tro-ly
+    steps:
+      - name: Require existing scoped Vercel credential
+        shell: bash
+        run: test -n "$VERCEL_TOKEN"
+
+      - name: Verify exact project identity
+        shell: bash
+        run: |
+          CODE="$(curl --silent --show-error -o /tmp/project.json -w '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [ "$CODE" = "404" ]; then
+            echo "Project already absent; slot already free." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          [ "$CODE" = "200" ]
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('/tmp/project.json','utf8'));
+          if(p.id!==process.env.VERCEL_PROJECT_ID) throw new Error(`Project ID mismatch: ${p.id}`);
+          if(p.name!==process.env.VERCEL_PROJECT_NAME) throw new Error(`Project name mismatch: ${p.name}`);
+          console.log(`Verified exact Vercel project ${p.name} (${p.id})`);
+          NODE
+
+      - name: Delete exact migrated project
+        shell: bash
+        run: |
+          CODE="$(curl --silent --show-error -o /tmp/delete.json -w '%{http_code}' \
+            --request DELETE \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [ "$CODE" != "204" ]; then
+            echo "Delete returned HTTP $CODE" >&2
+            cat /tmp/delete.json >&2 || true
+            exit 1
+          fi
+          echo "Deleted exact migrated project: $VERCEL_PROJECT_NAME ($VERCEL_PROJECT_ID)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Vercel slot released
+        shell: bash
+        run: |
+          CODE="$(curl --silent --show-error -o /tmp/verify.json -w '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          [ "$CODE" = "404" ]
+          echo "Verification PASS: project no longer exists; Vercel slot released for A.I Thiệt chẩn." >> "$GITHUB_STEP_SUMMARY"
