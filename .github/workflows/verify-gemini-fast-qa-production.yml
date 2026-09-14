@@ -20,15 +20,51 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_zMTBj85c4Dh5QoDNIjWqQRTg
+      VERCEL_PROJECT_ID: prj_SJqoqJ8FvH7CRJzbRRTGWQvIAtSc
     steps:
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@59.11.7
 
-      - name: Verify Gemini Google Search fast knowledge answer
+      - name: Bind verified Vercel project deterministically
         shell: bash
         run: |
           test -n "$VERCEL_TOKEN"
-          vercel curl "https://ai-van-phong-tro-ly.vercel.app/api/research" -- \
+          rm -rf .vercel
+          mkdir -p .vercel
+          node - <<'NODE'
+          const fs=require('fs');
+          fs.writeFileSync('.vercel/project.json',JSON.stringify({
+            orgId:process.env.VERCEL_ORG_ID,
+            projectId:process.env.VERCEL_PROJECT_ID
+          }));
+          NODE
+          node -e "const p=require('./.vercel/project.json'); if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID) process.exit(1); console.log('Vercel project binding verified:',p.projectId,p.orgId)"
+
+      - name: Resolve current production deployment
+        id: production
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/ai-van-phong-tro-ly.vercel.app?teamId=$VERCEL_ORG_ID" \
+            -o /tmp/current-production.json
+          PROD_ID="$(node -e "const d=require('/tmp/current-production.json');process.stdout.write(String(d.id||''))")"
+          PROD_HOST="$(node -e "const d=require('/tmp/current-production.json');process.stdout.write(String(d.url||''))")"
+          if [[ ! "$PROD_ID" =~ ^dpl_ ]] || [ -z "$PROD_HOST" ]; then
+            echo "::error::Could not resolve current production deployment"
+            exit 1
+          fi
+          echo "id=$PROD_ID" >> "$GITHUB_OUTPUT"
+          echo "url=https://$PROD_HOST" >> "$GITHUB_OUTPUT"
+          echo "Resolved current production deployment: $PROD_ID ($PROD_HOST)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Gemini Google Search fast knowledge answer
+        shell: bash
+        run: |
+          PROD_URL="${{ steps.production.outputs.url }}"
+          test -n "$PROD_URL"
+          vercel curl "$PROD_URL/api/research" -- \
             --fail --silent --show-error --max-time 18 \
             --request POST \
             --header 'content-type: application/json' \
